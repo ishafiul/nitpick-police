@@ -7,7 +7,11 @@ import {
   AppConfigSchema,
   AppConfig,
   EnvVarMapping,
+  RetrievalConfigSchema,
+  PromptCompositionConfigSchema,
+  ReviewStorageConfigSchema,
 } from './schemas';
+import { ConfigMigrationManager, MigrationResult } from './migrations';
 
 export interface ConfigSource {
   path: string;
@@ -241,22 +245,22 @@ export class ConfigManager {
    */
   private performAdditionalValidation(config: AppConfig, result: ConfigValidationResult): void {
     // Check for conflicting settings
-    if (config.git.exclude_merge_commits && config.git.include_merge_commits) {
+    if (config.git?.exclude_merge_commits && config.git?.include_merge_commits) {
       result.warnings.push('Both exclude_merge_commits and include_merge_commits are enabled');
     }
 
     // Check for reasonable performance settings
-    if (config.performance.max_memory_usage_mb > 4096) {
+    if (config.performance?.max_memory_usage_mb && config.performance.max_memory_usage_mb > 4096) {
       result.warnings.push('High memory usage setting detected (>4GB)');
     }
 
     // Check for security concerns
-    if (config.integrations.github.enabled && !config.integrations.github.api_token) {
+    if (config.integrations?.github?.enabled && !config.integrations.github.api_token) {
       result.warnings.push('GitHub integration enabled but no API token provided');
     }
 
     // Check for backup settings
-    if (config.backup.enabled && config.backup.encryption && !config.backup.encryption_key) {
+    if (config.backup?.enabled && config.backup?.encryption && !config.backup.encryption_key) {
       result.warnings.push('Backup encryption enabled but no encryption key provided');
     }
   }
@@ -324,17 +328,147 @@ export class ConfigManager {
       },
       qdrant: {
         url: 'http://localhost:6333',
-        collection_name: 'code_review',
-        dimension: 768,
+        api_key: '',
+        timeout: 10000,
+        retries: 3,
+        batch_size: 100,
+        collections: {
+          code_chunks: 'code_chunks',
+          review_insights: 'review_insights',
+          prompts: 'prompts',
+          cloud_responses: 'cloud_responses',
+        },
+        vector_dimension: 768,
         distance_metric: 'cosine',
+        // Embedding model compatibility
+        embedding_model: 'nomic-embed-text:v1.5',
+        max_chunk_size: 1000,
+        chunk_overlap: 50,
+        // Indexing settings
+        index_batch_size: 50,
+        max_concurrent_chunks: 10,
+        // Retrieval settings
+        default_top_k: 10,
+        max_retrieval_tokens: 4000,
+      },
+      embeddings: {
+        enabled: true,
+        model: 'nomic-embed-text:v1.5',
+        batch_size: 10,
+        timeout: 30000,
+        retries: 3,
+        cache: {
+          max_size: 10000,
+          max_size_bytes: 100 * 1024 * 1024, // 100MB
+          ttl_ms: 7 * 24 * 60 * 60 * 1000, // 7 days
+          cleanup_interval_ms: 60 * 60 * 1000, // 1 hour
+        },
+      },
+      chunking: {
+        defaultChunkSize: 100,
+        defaultOverlapLines: 5,
+        includeComments: true,
+        preserveContext: true,
+        minChunkSize: 10,
+        maxOverlapPercentage: 0.2,
+        languageSpecific: {
+          dart: {
+            chunkSize: 80,
+            overlapLines: 3,
+            respectBoundaries: true,
+          },
+          typescript: {
+            useAst: true,
+            fallbackToLines: true,
+            maxAstDepth: 10,
+          },
+          javascript: {
+            useAst: true,
+            fallbackToLines: true,
+            maxAstDepth: 10,
+          },
+        },
+      },
+      indexing: {
+        enabled: true,
+        include_patterns: [
+          'src/**/*.{ts,tsx,js,jsx,dart,py,java,cpp,c}',
+          'lib/**/*.{ts,tsx,js,jsx,dart,py,java,cpp,c}',
+          'components/**/*.{ts,tsx,js,jsx,dart,py,java,cpp,c}',
+          'utils/**/*.{ts,tsx,js,jsx,dart,py,java,cpp,c}',
+          '*.{ts,tsx,js,jsx,dart,py,java,cpp,c}',
+        ],
+        exclude_patterns: [
+          'node_modules/**',
+          'dist/**',
+          'build/**',
+          '.git/**',
+          '.next/**',
+          '.nuxt/**',
+          'coverage/**',
+          '*.min.js',
+          '*.bundle.js',
+          '*.lock',
+          'package-lock.json',
+          'yarn.lock',
+          'pnpm-lock.yaml',
+          '*.log',
+          '.DS_Store',
+          'Thumbs.db',
+        ],
+        max_file_size_mb: 10,
+        max_files_per_index: 1000,
+        batch_size: 10,
+        enable_incremental: true,
+        gitignore_support: true,
+        follow_symlinks: false,
+        max_depth: 10,
+      },
+      deltaIndexing: {
+        enabled: true,
+        maxConcurrentFiles: 5,
+        batchSize: 10,
+        forceRecheck: false,
+        skipEmbeddingRegeneration: false,
+        changeDetectionMode: 'both',
+        hashComparisonEnabled: true,
+        incrementalUpdateThreshold: 50,
+        errorHandlingMode: 'lenient',
+        progressReportingEnabled: true,
+        dryRunSupported: true,
       },
       review: {
         severity_levels: ['low', 'medium', 'high', 'critical'],
         categories: ['security', 'performance', 'style', 'bug', 'complexity'],
         auto_escalate_keywords: ['security', 'vulnerability', 'critical'],
         max_comments_per_file: 50,
-        max_file_changes: 100,
-        max_lines_changed: 1000,
+        max_file_size_mb: 10,
+        exclude_patterns: [
+          'node_modules/**',
+          'dist/**',
+          'build/**',
+          '.git/**',
+          '*.min.js',
+          '*.bundle.js',
+          '*.lock',
+          'package-lock.json',
+          'yarn.lock',
+          'pnpm-lock.yaml'
+        ],
+        include_patterns: [
+          'src/**/*.{ts,tsx,js,jsx}',
+          'lib/**/*.{ts,tsx,js,jsx}',
+          'components/**/*.{ts,tsx,js,jsx}',
+          'utils/**/*.{ts,tsx,js,jsx}',
+          '*.{ts,tsx,js,jsx}'
+        ],
+        review_template: 'Please review this code for {categories} issues with focus on {severity} severity items.',
+        auto_resolve_patterns: [
+          '^\\s*//\\s*todo:',
+          '^\\s*//\\s*fixme:',
+          '^\\s*//\\s*hack:',
+          '^\\s*//\\s*temp:'
+        ],
       },
       git: {
         max_commits_per_review: 50,
@@ -390,6 +524,69 @@ export class ConfigManager {
         cache_enabled: true,
         cache_ttl_seconds: 3600,
         batch_size: 100,
+      },
+      retrieval: {
+        enabled: true,
+        default_top_k: 10,
+        max_retrieval_tokens: 4000,
+        hybrid_scoring: {
+          enabled: true,
+          semantic_weight: 0.7,
+          keyword_weight: 0.3,
+        },
+        reranking: {
+          enabled: false,
+          model: 'cross-encoder/ms-marco-MiniLM-L-6-v2',
+          top_k: 20,
+        },
+        filters: {
+          enabled: true,
+          file_types: ['ts', 'js', 'tsx', 'jsx', 'py', 'java', 'cpp', 'c'],
+          exclude_patterns: ['node_modules/**', 'dist/**', 'build/**'],
+        },
+      },
+      prompt_composition: {
+        enabled: true,
+        token_budget: 8000,
+        token_allocations: {
+          preamble: 0.1,
+          context: 0.6,
+          instructions: 0.2,
+          examples: 0.1,
+        },
+        context_management: {
+          max_files: 10,
+          max_lines_per_file: 100,
+          prioritize_recent: true,
+          include_imports: true,
+        },
+        template_engine: {
+          enabled: true,
+          custom_templates: {},
+          fallback_template: 'default',
+        },
+      },
+      review_storage: {
+        enabled: true,
+        local_storage: {
+          enabled: true,
+          directory: '.code_review/reviews',
+          format: 'json',
+          compression: false,
+          retention_days: 90,
+        },
+        cloud_storage: {
+          enabled: false,
+          provider: 's3',
+          bucket: '',
+          region: 'us-east-1',
+          prefix: 'reviews/',
+        },
+        indexing: {
+          enabled: true,
+          searchable_fields: ['summary', 'issues', 'suggestions'],
+          full_text_search: true,
+        },
       },
     });
   }
@@ -503,5 +700,232 @@ export class ConfigManager {
       project: this.configPath,
       global: this.globalConfigPath,
     };
+  }
+
+  /**
+   * Check if configuration needs migration
+   */
+  needsMigration(): boolean {
+    if (!this.config) return false;
+    return new ConfigMigrationManager().needsMigration(this.config);
+  }
+
+  /**
+   * Migrate configuration to latest version
+   */
+  async migrateConfiguration(options: {
+    dryRun?: boolean;
+    createBackup?: boolean;
+    backupDir?: string;
+  } = {}): Promise<MigrationResult> {
+    if (!this.config) {
+      throw new Error('Configuration not loaded');
+    }
+
+    // Create backup if requested
+    if (options.createBackup) {
+      // TODO: Implement backup functionality
+      logger.info('Backup requested but not yet implemented');
+    }
+
+    // Perform migration
+    const result = await new ConfigMigrationManager().migrateConfig(this.config, undefined);
+
+    if (result.success && !options.dryRun) {
+      // Save migrated configuration
+      await this.saveConfig(result.migratedConfig);
+      this.config = result.migratedConfig;
+      logger.info('Migrated configuration saved successfully');
+    }
+
+    return result;
+  }
+
+  /**
+   * Get migration recommendations
+   */
+  getMigrationRecommendations(): string[] {
+    if (!this.config) return [];
+    // TODO: Implement migration recommendations
+    return ['Consider updating to latest schema version'];
+  }
+
+  /**
+   * Get retrieval configuration section
+   */
+  getRetrievalConfig() {
+    if (!this.config?.retrieval) {
+      throw new Error('Retrieval configuration not found');
+    }
+    return this.config.retrieval;
+  }
+
+  /**
+   * Update retrieval configuration
+   */
+  async updateRetrievalConfig(updates: Partial<AppConfig['retrieval']>): Promise<void> {
+    if (!this.config) {
+      throw new Error('Configuration not loaded');
+    }
+
+    if (!this.config.retrieval) {
+      this.config.retrieval = RetrievalConfigSchema.parse({});
+    }
+
+    // Deep merge updates
+    this.config.retrieval = this.deepMerge(this.config.retrieval, updates);
+
+    // Validate the updated configuration
+    const validationResult = RetrievalConfigSchema.safeParse(this.config.retrieval);
+    if (!validationResult.success) {
+      throw new Error(`Invalid retrieval configuration: ${validationResult.error.message}`);
+    }
+
+    await this.saveConfig(this.config);
+    logger.info('Retrieval configuration updated successfully');
+  }
+
+  /**
+   * Get prompt composition configuration section
+   */
+  getPromptCompositionConfig() {
+    if (!this.config?.prompt_composition) {
+      throw new Error('Prompt composition configuration not found');
+    }
+    return this.config.prompt_composition;
+  }
+
+  /**
+   * Update prompt composition configuration
+   */
+  async updatePromptCompositionConfig(updates: Partial<AppConfig['prompt_composition']>): Promise<void> {
+    if (!this.config) {
+      throw new Error('Configuration not loaded');
+    }
+
+    if (!this.config.prompt_composition) {
+      this.config.prompt_composition = PromptCompositionConfigSchema.parse({});
+    }
+
+    // Deep merge updates
+    this.config.prompt_composition = this.deepMerge(this.config.prompt_composition, updates);
+
+    // Validate the updated configuration
+    const validationResult = PromptCompositionConfigSchema.safeParse(this.config.prompt_composition);
+    if (!validationResult.success) {
+      throw new Error(`Invalid prompt composition configuration: ${validationResult.error.message}`);
+    }
+
+    await this.saveConfig(this.config);
+    logger.info('Prompt composition configuration updated successfully');
+  }
+
+  /**
+   * Get review storage configuration section
+   */
+  getReviewStorageConfig() {
+    if (!this.config?.review_storage) {
+      throw new Error('Review storage configuration not found');
+    }
+    return this.config.review_storage;
+  }
+
+  /**
+   * Update review storage configuration
+   */
+  async updateReviewStorageConfig(updates: Partial<AppConfig['review_storage']>): Promise<void> {
+    if (!this.config) {
+      throw new Error('Configuration not loaded');
+    }
+
+    if (!this.config.review_storage) {
+      this.config.review_storage = ReviewStorageConfigSchema.parse({});
+    }
+
+    // Deep merge updates
+    this.config.review_storage = this.deepMerge(this.config.review_storage, updates);
+
+    // Validate the updated configuration
+    const validationResult = ReviewStorageConfigSchema.safeParse(this.config.review_storage);
+    if (!validationResult.success) {
+      throw new Error(`Invalid review storage configuration: ${validationResult.error.message}`);
+    }
+
+    await this.saveConfig(this.config);
+    logger.info('Review storage configuration updated successfully');
+  }
+
+  /**
+   * Get configuration compatibility information
+   */
+  async getCompatibilityInfo() {
+    if (!this.config) {
+      throw new Error('Configuration not loaded');
+    }
+
+    const issues: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    // Basic checks for required sections
+    if (!this.config.qdrant?.url) {
+      issues.push('Missing qdrant.url');
+    }
+    if (!this.config.local_llm?.model) {
+      warnings.push('local_llm.model not set; default may be used');
+    }
+    if (!this.config.cloud_llm?.model) {
+      warnings.push('cloud_llm.model not set; default may be used');
+    }
+    if (!this.config.embeddings?.model) {
+      warnings.push('embeddings.model not set; retrieval might be suboptimal');
+    }
+
+    // Version checks
+    const schemaVersion = this.config.schema_version || '1.0.0';
+    const available = new ConfigMigrationManager().getAvailableVersions();
+    const latest = available[available.length - 1] || schemaVersion;
+    if (schemaVersion !== latest) {
+      warnings.push(`Config schema_version is ${schemaVersion}; latest is ${latest}`);
+      recommendations.push('Run: code-review config-mgmt migrate');
+    }
+
+    return {
+      compatible: issues.length === 0,
+      warnings,
+      recommendations,
+      issues,
+    };
+  }
+
+  /**
+   * Get available migration versions
+   */
+  getAvailableMigrations(): string[] {
+    return new ConfigMigrationManager().getAvailableVersions();
+  }
+
+  /**
+   * Get migration information
+   */
+  getMigrationInfo(): Array<{ version: string; description: string }> {
+    return new ConfigMigrationManager().getMigrationInfo();
+  }
+
+  /**
+   * Deep merge utility function
+   */
+  private deepMerge(target: any, source: any): any {
+    const result = { ...target };
+
+    for (const [key, value] of Object.entries(source)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = this.deepMerge(result[key] || {}, value);
+      } else if (value !== undefined) {
+        result[key] = value;
+      }
+    }
+
+    return result;
   }
 }

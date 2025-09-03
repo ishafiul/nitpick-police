@@ -30,9 +30,6 @@ export class CodeChunker {
     preserveContext: true,
   };
 
-  /**
-   * Chunk code into logical units using AST parsing when possible
-   */
   async chunkCode(
     content: string,
     filePath: string,
@@ -64,9 +61,6 @@ export class CodeChunker {
     }
   }
 
-  /**
-   * Detect programming language from file extension and content
-   */
   private detectLanguage(filePath: string, content: string): string {
     const extension = filePath.split('.').pop()?.toLowerCase();
     
@@ -106,7 +100,7 @@ export class CodeChunker {
       case 'scala':
         return 'scala';
       default:
-        // Try to detect from content
+
         if (content.includes('function') || content.includes('const') || content.includes('let')) {
           return 'javascript';
         }
@@ -120,9 +114,6 @@ export class CodeChunker {
     }
   }
 
-  /**
-   * Chunk JavaScript/TypeScript code using Babel AST
-   */
   private chunkJavaScriptTypeScript(
     content: string,
     filePath: string,
@@ -133,7 +124,7 @@ export class CodeChunker {
     const lines = content.split('\n');
     
     try {
-      // Parse with Babel
+
       const ast = parser.parse(content, {
         sourceType: 'module',
         plugins: [
@@ -155,7 +146,6 @@ export class CodeChunker {
         allowAwaitOutsideFunction: true,
       });
 
-      // Extract functions, classes, and modules
       traverse(ast, {
         FunctionDeclaration(path) {
           const node = path.node;
@@ -295,7 +285,6 @@ export class CodeChunker {
         },
       });
 
-      // If no chunks found, create a file-level chunk
       if (chunks.length === 0) {
         chunks.push({
           id: `${filePath}:file`,
@@ -316,14 +305,10 @@ export class CodeChunker {
     }
   }
 
-  /**
-   * Chunk Go code using basic pattern matching
-   */
   private chunkGo(content: string, filePath: string, _options: Required<ChunkingOptions>): CodeChunk[] {
     const chunks: CodeChunk[] = [];
     const lines = content.split('\n');
-    
-    // Find function definitions
+
     const functionRegex = /^func\s+([^(]+)\(/;
     const methodRegex = /^func\s*\([^)]+\)\s+([^(]+)\(/;
     
@@ -337,8 +322,7 @@ export class CodeChunker {
       if (funcMatch || methodMatch) {
         const name = funcMatch ? funcMatch[1]?.trim() || 'anonymous' : methodMatch![1]?.trim() || 'anonymous';
         const startLine = i + 1;
-        
-        // Find the end of the function (basic implementation)
+
         let endLine = startLine;
         let braceCount = 0;
         let inFunction = false;
@@ -367,7 +351,7 @@ export class CodeChunker {
           startLine,
           endLine,
           chunkType: funcMatch ? 'function' : 'method',
-          complexityScore: 1, // Basic complexity for now
+          complexityScore: 1,
           dependencies: [],
           metadata: {
             name,
@@ -377,8 +361,7 @@ export class CodeChunker {
         chunks.push(chunk);
       }
     }
-    
-    // If no chunks found, create a file-level chunk
+
     if (chunks.length === 0) {
       chunks.push({
         id: `${filePath}:file`,
@@ -396,14 +379,10 @@ export class CodeChunker {
     return chunks;
   }
 
-  /**
-   * Chunk Rust code using basic pattern matching
-   */
   private chunkRust(content: string, filePath: string, _options: Required<ChunkingOptions>): CodeChunk[] {
     const chunks: CodeChunk[] = [];
     const lines = content.split('\n');
-    
-    // Find function definitions
+
     const functionRegex = /^fn\s+([^(]+)\(/;
     const implRegex = /^impl\s+([^{]+)\s*{/;
     
@@ -417,8 +396,7 @@ export class CodeChunker {
       if (funcMatch) {
         const name = funcMatch[1]?.trim() || 'anonymous';
         const startLine = i + 1;
-        
-        // Find the end of the function (basic implementation)
+
         let endLine = startLine;
         let braceCount = 0;
         let inFunction = false;
@@ -447,7 +425,7 @@ export class CodeChunker {
           startLine,
           endLine,
           chunkType: 'function',
-          complexityScore: 1, // Basic complexity for now
+          complexityScore: 1,
           dependencies: [],
           metadata: {
             name,
@@ -458,8 +436,7 @@ export class CodeChunker {
       } else if (implMatch) {
         const name = implMatch[1]?.trim() || 'anonymous';
         const startLine = i + 1;
-        
-        // Find the end of the impl block
+
         let endLine = startLine;
         let braceCount = 0;
         let inImpl = false;
@@ -488,7 +465,7 @@ export class CodeChunker {
           startLine,
           endLine,
           chunkType: 'class',
-          complexityScore: 1, // Basic complexity for now
+          complexityScore: 1,
           dependencies: [],
           metadata: {
             name,
@@ -498,8 +475,7 @@ export class CodeChunker {
         chunks.push(chunk);
       }
     }
-    
-    // If no chunks found, create a file-level chunk
+
     if (chunks.length === 0) {
       chunks.push({
         id: `${filePath}:file`,
@@ -517,9 +493,6 @@ export class CodeChunker {
     return chunks;
   }
 
-  /**
-   * Fallback chunking by lines for unsupported languages
-   */
   private chunkByLines(
     content: string,
     filePath: string,
@@ -528,8 +501,7 @@ export class CodeChunker {
   ): CodeChunk[] {
     const lines = content.split('\n');
     const chunks: CodeChunk[] = [];
-    
-    // If content is empty or only whitespace, return a single file chunk
+
     if (!content.trim()) {
       chunks.push({
         id: `${filePath}:file`,
@@ -570,16 +542,12 @@ export class CodeChunker {
     return chunks;
   }
 
-  /**
-   * Calculate cyclomatic complexity of a function/class
-   */
   private static calculateComplexity(node: any): number {
-    let complexity = 1; // Base complexity
+    let complexity = 1;
     
     const countNodes = (n: any) => {
       if (!n) return;
-      
-      // Count decision points
+
       if (n.type === 'IfStatement' || n.type === 'SwitchCase' || 
           n.type === 'ForStatement' || n.type === 'WhileStatement' ||
           n.type === 'DoWhileStatement' || n.type === 'ForInStatement' ||
@@ -587,13 +555,11 @@ export class CodeChunker {
           n.type === 'LogicalExpression' || n.type === 'SwitchStatement') {
         complexity++;
       }
-      
-      // Count catch blocks
+
       if (n.type === 'CatchClause') {
         complexity++;
       }
-      
-      // Recursively check children
+
       for (const key in n) {
         if (n[key] && typeof n[key] === 'object') {
           if (Array.isArray(n[key])) {
@@ -609,9 +575,6 @@ export class CodeChunker {
     return complexity;
   }
 
-  /**
-   * Extract dependencies from a code node
-   */
   private static extractDependencies(node: any): string[] {
     const dependencies: string[] = [];
     
@@ -635,8 +598,7 @@ export class CodeChunker {
           dependencies.push(n.object.name);
         }
       }
-      
-      // Recursively check children
+
       for (const key in n) {
         if (n[key] && typeof n[key] === 'object') {
           if (Array.isArray(n[key])) {
@@ -649,6 +611,6 @@ export class CodeChunker {
     };
     
     extractFromNode(node);
-    return [...new Set(dependencies)]; // Remove duplicates
+    return [...new Set(dependencies)];
   }
 }

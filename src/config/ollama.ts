@@ -8,8 +8,8 @@ export const defaultOllamaConfig: OllamaConfig = {
 };
 
 export const requiredModels = [
-  'mistral:7b-instruct',  // For code review
-  'nomic-embed-text',     // For embeddings
+  'mistral:7b-instruct', 
+  'nomic-embed-text',    
 ];
 
 export const modelConfigs = {

@@ -1,25 +1,23 @@
 import { z } from 'zod';
 
-// Custom validators
 const isValidFilePath = (path: string): boolean => {
-  // Check for path traversal attempts
-  if (path.includes('..') || path.includes('//')) return false;
-  
-  // Check for invalid characters
+
+  if (path.includes('..') || path.includes('\n') || path.includes('\r')) {
+    return false;
+  }
+
   const invalidChars = /[<>:"|?*\x00-\x1f]/;
   if (invalidChars.test(path)) return false;
-  
-  // Check for absolute paths (optional restriction)
+
   if (path.startsWith('/') || path.startsWith('\\')) return false;
   
   return true;
 };
 
 const isValidLineNumber = (line: number): boolean => {
-  return line > 0 && line <= 1000000; // Reasonable upper limit
+  return line > 0 && line <= 1000000;
 };
 
-// Base schema for common fields
 const BaseEntity = z.object({
   id: z.string().uuid(),
   created_at: z.date().or(z.string().datetime()).transform(val => 
@@ -30,7 +28,6 @@ const BaseEntity = z.object({
   ),
 });
 
-// Review status enum
 export const ReviewStatus = z.enum([
   'pending',
   'in_progress',
@@ -39,7 +36,6 @@ export const ReviewStatus = z.enum([
   'cancelled'
 ]);
 
-// Comment severity enum
 export const CommentSeverity = z.enum([
   'low',
   'medium',
@@ -47,7 +43,6 @@ export const CommentSeverity = z.enum([
   'critical'
 ]);
 
-// Comment category enum
 export const CommentCategory = z.enum([
   'security',
   'performance',
@@ -56,7 +51,6 @@ export const CommentCategory = z.enum([
   'complexity'
 ]);
 
-// Comment status enum
 export const CommentStatus = z.enum([
   'open',
   'resolved',
@@ -64,7 +58,6 @@ export const CommentStatus = z.enum([
   'dismissed'
 ]);
 
-// ReviewComment schema
 export const ReviewComment = BaseEntity.extend({
   file_path: z.string().min(1).refine(
     isValidFilePath,
@@ -83,7 +76,6 @@ export const ReviewComment = BaseEntity.extend({
   ),
 });
 
-// ReviewState schema
 export const ReviewState = BaseEntity.extend({
   commit_sha: z.string().min(7).max(40).refine(
     (sha) => /^[a-f0-9]+$/i.test(sha),
@@ -94,7 +86,6 @@ export const ReviewState = BaseEntity.extend({
   metadata: z.record(z.unknown()).optional(),
 });
 
-// CommitIndex schema
 export const CommitIndex = BaseEntity.extend({
   sha: z.string().min(7).max(40).refine(
     (sha) => /^[a-f0-9]+$/i.test(sha),
@@ -107,7 +98,6 @@ export const CommitIndex = BaseEntity.extend({
   ),
 });
 
-// Main state schema
 export const AppState = z.object({
   version: z.string().default('1.0.0'),
   schema_version: z.string().default('1.0.0'),
@@ -124,7 +114,6 @@ export const AppState = z.object({
   }).default({}),
 });
 
-// Type inference
 export type ReviewCommentType = z.infer<typeof ReviewComment>;
 export type ReviewStateType = z.infer<typeof ReviewState>;
 export type CommitIndexType = z.infer<typeof CommitIndex>;
@@ -134,7 +123,6 @@ export type CommentSeverityType = z.infer<typeof CommentSeverity>;
 export type CommentCategoryType = z.infer<typeof CommentCategory>;
 export type CommentStatusType = z.infer<typeof CommentStatus>;
 
-// Serialization helpers
 export const serializeState = (state: AppStateType): string => {
   return JSON.stringify(state, null, 2);
 };
@@ -144,7 +132,6 @@ export const deserializeState = (data: string): AppStateType => {
   return AppState.parse(parsed);
 };
 
-// Validation helpers
 export const validateReviewComment = (data: unknown): ReviewCommentType => {
   return ReviewComment.parse(data);
 };
@@ -161,13 +148,11 @@ export const validateAppState = (data: unknown): AppStateType => {
   return AppState.parse(data);
 };
 
-// JSON Schema export for documentation
 export const getReviewCommentSchema = () => ReviewComment._def;
 export const getReviewStateSchema = () => ReviewState._def;
 export const getCommitIndexSchema = () => CommitIndex._def;
 export const getAppStateSchema = () => AppState._def;
 
-// Export all schemas as a single object
 export const getAllSchemas = () => ({
   ReviewComment: ReviewComment._def,
   ReviewState: ReviewState._def,

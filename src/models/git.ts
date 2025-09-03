@@ -1,4 +1,4 @@
-// Git repository information
+
 export interface GitRepositoryInfo {
   root: string;
   isRepository: boolean;
@@ -8,7 +8,6 @@ export interface GitRepositoryInfo {
   isClean: boolean;
 }
 
-// Enhanced commit information
 export interface GitCommitInfo {
   hash: string;
   shortHash: string;
@@ -25,18 +24,16 @@ export interface GitCommitInfo {
   tags: string[];
 }
 
-// File change information
 export interface GitFileChange {
   file: string;
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied';
   linesAdded: number;
   linesDeleted: number;
   isBinary: boolean;
-  similarity?: number; // For renamed/copied files
-  oldFile?: string; // For renamed files
+  similarity?: number;
+  oldFile?: string;
 }
 
-// Diff information with context
 export interface GitDiffInfo {
   file: string;
   hunks: GitDiffHunk[];
@@ -45,7 +42,6 @@ export interface GitDiffInfo {
   oldFile?: string;
 }
 
-// Diff hunk with context lines
 export interface GitDiffHunk {
   oldStart: number;
   oldLines: number;
@@ -55,7 +51,6 @@ export interface GitDiffHunk {
   lines: GitDiffLine[];
 }
 
-// Individual diff line
 export interface GitDiffLine {
   type: 'context' | 'addition' | 'deletion';
   oldNumber?: number | undefined;
@@ -63,7 +58,6 @@ export interface GitDiffLine {
   content: string;
 }
 
-// Working directory status
 export interface GitWorkingStatus {
   isClean: boolean;
   stagedFiles: GitFileChange[];
@@ -72,7 +66,6 @@ export interface GitWorkingStatus {
   conflicts: string[];
 }
 
-// Commit range analysis
 export interface GitCommitRange {
   from: string;
   to: string;
@@ -83,7 +76,6 @@ export interface GitCommitRange {
   summary: string;
 }
 
-// Git operation options
 export interface GitOptions {
   since?: string | Date;
   until?: string | Date;
@@ -95,7 +87,6 @@ export interface GitOptions {
   ignoreWhitespace?: boolean;
 }
 
-// Git error types
 export enum GitErrorType {
   NOT_A_REPOSITORY = 'NOT_A_REPOSITORY',
   CORRUPTED_REPOSITORY = 'CORRUPTED_REPOSITORY',
@@ -107,7 +98,6 @@ export enum GitErrorType {
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
-// Custom Git error class
 export class GitError extends Error {
   constructor(
     message: string,
@@ -120,7 +110,6 @@ export class GitError extends Error {
   }
 }
 
-// Type guards for runtime validation
 export const isGitRepositoryInfo = (obj: unknown): obj is GitRepositoryInfo => {
   if (!obj || typeof obj !== 'object') return false;
   const info = obj as GitRepositoryInfo;
@@ -175,7 +164,6 @@ export const isGitWorkingStatus = (obj: unknown): obj is GitWorkingStatus => {
   );
 };
 
-// Utility functions
 export const parseGitDate = (dateString: string): Date => {
   return new Date(dateString);
 };
@@ -200,6 +188,6 @@ export const isBinaryFile = (filePath: string): boolean => {
 };
 
 export const sanitizeGitPath = (path: string): string => {
-  // Remove null bytes and normalize path separators
+
   return path.replace(/\0/g, '').replace(/\\/g, '/');
 };

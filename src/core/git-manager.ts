@@ -40,12 +40,9 @@ export class GitManager {
     this.git = simpleGit(options);
   }
 
-  /**
-   * Initialize the Git manager and verify repository
-   */
   async initialize(): Promise<void> {
     try {
-      // Check if the directory is a Git repository
+
       const isRepo = await this.git.checkIsRepo();
       if (!isRepo) {
         throw new GitError(
@@ -54,15 +51,13 @@ export class GitManager {
         );
       }
 
-      // Test basic Git operations
       await this.git.status();
       this.isInitialized = true;
     } catch (error) {
       if (error instanceof GitError) {
         throw error;
       }
-      
-      // Check for specific Git errors
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('not a git repository')) {
         throw new GitError(
@@ -85,9 +80,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get repository information
-   */
   async getRepositoryInfo(): Promise<GitRepositoryInfo> {
     this.ensureInitialized();
 
@@ -117,9 +109,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get commit information for a specific commit
-   */
   async getCommitInfo(commitHash: string): Promise<GitCommitInfo> {
     this.ensureInitialized();
 
@@ -146,7 +135,6 @@ export class GitManager {
 
       const diffStats = this.parseDiffStats(diff);
 
-      // Get parent hashes using git show
       const showResult = await this.git.raw(['show', '--format=%P', '--no-patch', commitHash]);
       const parentHashes = showResult.trim().split(/\s+/).filter(hash => hash.length > 0);
 
@@ -176,9 +164,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get commits in a range
-   */
   async getCommitsInRange(from: string, to: string, options: GitOptions = {}): Promise<GitCommitInfo[]> {
     this.ensureInitialized();
 
@@ -208,16 +193,12 @@ export class GitManager {
     }
   }
 
-  /**
-   * Analyze commit range with summary
-   */
   async analyzeCommitRange(from: string, to: string, options: GitOptions = {}): Promise<GitCommitRange> {
     this.ensureInitialized();
 
     try {
       const commits = await this.getCommitsInRange(from, to, options);
-      
-      // Get diff stats for the entire range
+
       const diff = await this.git.diff([from, to, '--stat']);
       const diffStats = this.parseDiffStats(diff);
 
@@ -237,9 +218,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get working directory status
-   */
   async getWorkingStatus(): Promise<GitWorkingStatus> {
     this.ensureInitialized();
 
@@ -254,7 +232,6 @@ export class GitManager {
         conflicts: status.conflicted
       };
 
-      // Add deleted files
       workingStatus.stagedFiles.push(...this.parseStatusFiles(status.deleted, 'deleted'));
       workingStatus.unstagedFiles.push(...this.parseStatusFiles(status.deleted, 'deleted'));
 
@@ -268,9 +245,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get diff for a specific commit or range
-   */
   async getDiff(from: string, to?: string, options: GitOptions = {}): Promise<GitDiffInfo[]> {
     this.ensureInitialized();
 
@@ -292,9 +266,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get staged changes diff
-   */
   async getStagedDiff(options: GitOptions = {}): Promise<GitDiffInfo[]> {
     this.ensureInitialized();
 
@@ -306,9 +277,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get unstaged changes diff
-   */
   async getUnstagedDiff(options: GitOptions = {}): Promise<GitDiffInfo[]> {
     this.ensureInitialized();
 
@@ -320,9 +288,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Check if a file is ignored by .gitignore
-   */
   async isIgnored(filePath: string): Promise<boolean> {
     this.ensureInitialized();
 
@@ -330,14 +295,11 @@ export class GitManager {
       const result = await this.git.checkIgnore(filePath);
       return result.length > 0;
     } catch (error) {
-      // If check-ignore fails, assume not ignored
+
       return false;
     }
   }
 
-  /**
-   * Get all ignored files
-   */
   async getIgnoredFiles(): Promise<string[]> {
     this.ensureInitialized();
 
@@ -349,22 +311,16 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get commit tags
-   */
   private async getCommitTags(commitHash: string): Promise<string[]> {
     try {
       const result = await this.git.raw(['tag', '--points-at', commitHash]);
       return result.split('\n').filter(line => line.trim().length > 0);
     } catch (error) {
-      // If tags command fails, return empty array
+
       return [];
     }
   }
 
-  /**
-   * Parse diff statistics from git diff --stat output
-   */
   private parseDiffStats(diffOutput: string): { files: string[]; linesAdded: number; linesDeleted: number } {
     const files: string[] = [];
     let linesAdded = 0;
@@ -372,7 +328,7 @@ export class GitManager {
 
     const lines = diffOutput.split('\n');
     for (const line of lines) {
-      // Look for lines like " 2 files changed, 4 insertions(+), 2 deletions(-)"
+
       if (line.includes('files changed')) {
         const match = line.match(/(\d+) insertions?\(\+\), (\d+) deletions?\(-\)/);
         if (match && match[1] && match[2]) {
@@ -380,7 +336,7 @@ export class GitManager {
           linesDeleted = parseInt(match[2], 10);
         }
       }
-      // Look for file lines like " src/file.ts | 2 +-"
+
       else if (line.includes('|') && line.trim().length > 0) {
         const parts = line.split('|');
         if (parts.length >= 2 && parts[0]) {
@@ -395,9 +351,6 @@ export class GitManager {
     return { files, linesAdded, linesDeleted };
   }
 
-  /**
-   * Parse status files into GitFileChange objects
-   */
   private parseStatusFiles(files: string[], status: GitFileChange['status']): GitFileChange[] {
     return files.map(file => ({
       file: sanitizeGitPath(file),
@@ -408,9 +361,6 @@ export class GitManager {
     }));
   }
 
-  /**
-   * Parse diff output into structured format
-   */
   private parseDiffOutput(diffOutput: string, options: GitOptions): GitDiffInfo[] {
     const diffs: GitDiffInfo[] = [];
     const fileDiffs = this.splitDiffByFile(diffOutput);
@@ -432,9 +382,6 @@ export class GitManager {
     return diffs;
   }
 
-  /**
-   * Split diff output by file
-   */
   private splitDiffByFile(diffOutput: string): Map<string, string> {
     const fileDiffs = new Map<string, string>();
     const filePattern = /^diff --git a\/(.+) b\/(.+)$/;
@@ -462,9 +409,6 @@ export class GitManager {
     return fileDiffs;
   }
 
-  /**
-   * Parse diff hunks from file diff
-   */
   private parseDiffHunks(fileDiff: string): GitDiffHunk[] {
     const hunks: GitDiffHunk[] = [];
     const hunkPattern = /^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@(.+)$/;
@@ -518,9 +462,6 @@ export class GitManager {
     return hunks;
   }
 
-  /**
-   * Generate summary for commit range
-   */
   private generateCommitRangeSummary(commits: GitCommitInfo[], diffStats: { linesAdded: number; linesDeleted: number }): string {
     const commitCount = commits.length;
     const filesChanged = new Set<string>();
@@ -532,9 +473,6 @@ export class GitManager {
     return `${commitCount} commits changed ${filesChanged.size} files (+${diffStats.linesAdded} -${diffStats.linesDeleted})`;
   }
 
-  /**
-   * Ensure Git manager is initialized
-   */
   private ensureInitialized(): void {
     if (!this.isInitialized) {
       throw new GitError(
@@ -544,9 +482,6 @@ export class GitManager {
     }
   }
 
-  /**
-   * Handle Git errors and convert to custom GitError
-   */
   private handleGitError(error: unknown, context: string): GitError {
     if (error instanceof GitError) {
       return error;
@@ -569,16 +504,10 @@ export class GitManager {
     }
   }
 
-  /**
-   * Get the underlying SimpleGit instance
-   */
   getSimpleGit(): SimpleGit {
     return this.git;
   }
 
-  /**
-   * Get repository root path
-   */
   getRepositoryRoot(): string {
     return this.repositoryRoot;
   }

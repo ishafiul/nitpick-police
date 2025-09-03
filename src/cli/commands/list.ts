@@ -36,7 +36,6 @@ export function listCommand(program: Command): void {
             };
           });
 
-        // Sort by date (newest first)
         reviewFiles.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
 
         const reviewsToDisplay = status ? reviewFiles.filter(r => r.status === status) : reviewFiles;
@@ -49,7 +48,6 @@ export function listCommand(program: Command): void {
             return;
           }
 
-          // Create table
           const table = new Table({
             head: [
               chalk.cyan('ID'),
@@ -66,7 +64,6 @@ export function listCommand(program: Command): void {
             colWidths: [6, 35, 10, 12, 6, 50]
           });
 
-          // Add rows
           reviewsToDisplay.forEach(review => {
             const statusColor = review.status === 'pending' ? chalk.yellow :
                                review.status === 'done' ? chalk.green :
@@ -75,7 +72,6 @@ export function listCommand(program: Command): void {
 
             const dateStr = review.date ? new Date(review.date).toLocaleDateString() : 'Unknown';
 
-            // Create details summary
             let detailsText = '';
             if (review.details && review.details.length > 0) {
               const firstDetail = review.details[0];
@@ -94,7 +90,6 @@ export function listCommand(program: Command): void {
                 detailsText += `\n${chalk.green('💡')} ${suggestion.substring(0, 25)}${suggestion.length > 25 ? '...' : ''}`;
               }
 
-              // Add count if there are more issues
               if (review.details.length > 1) {
                 const criticalCount = review.details.filter((d: any) => (d.severity || '').toUpperCase() === 'CRITICAL').length;
                 const highCount = review.details.filter((d: any) => (d.severity || '').toUpperCase() === 'HIGH').length;
@@ -116,7 +111,7 @@ export function listCommand(program: Command): void {
             }
 
             table.push([
-              chalk.gray(review.id.slice(-4)), // Short ID (last 4 chars)
+              chalk.gray(review.id.slice(-4)),
               (review.title || 'Untitled review').substring(0, 32) + ((review.title || '').length > 32 ? '...' : ''),
               statusColor(review.status),
               chalk.white(dateStr),
@@ -125,12 +120,10 @@ export function listCommand(program: Command): void {
             ]);
           });
 
-          // Display table
           const headerText = status ? `📋 Reviews (${status})` : '📋 All Reviews';
           console.log(chalk.blue(headerText));
           console.log(table.toString());
 
-          // Summary with severity breakdown
           const totalReviews = reviewsToDisplay.length;
           const allDetails = reviewsToDisplay.flatMap(r => r.details || []);
           const severityCounts = {
@@ -144,7 +137,6 @@ export function listCommand(program: Command): void {
           console.log('');
           console.log(chalk.gray(`Total: ${totalReviews} reviews • ${allDetails.length} findings`));
 
-          // Show severity breakdown if there are findings
           if (allDetails.length > 0) {
             const severityParts = [];
             if (severityCounts.critical > 0) severityParts.push(`${severityCounts.critical}🔴`);

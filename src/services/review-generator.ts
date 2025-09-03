@@ -50,10 +50,8 @@ export class ReviewGenerator {
   async generateReview(options: ReviewOptions): Promise<ReviewResult> {
     logInfo('🔍 Gathering changes for review...');
 
-    // Ensure Git manager is initialized
     await this.ensureInitialized();
 
-    // Get changes from git - use working status for now
     const workingStatus = await this.gitManager.getWorkingStatus();
 
     if (!workingStatus.unstagedFiles.length && !workingStatus.stagedFiles.length && !workingStatus.untrackedFiles.length) {
@@ -76,18 +74,17 @@ export class ReviewGenerator {
 
     logInfo(`📊 Found ${targetFiles.length} files with changes`);
 
-    // Process each file and create chunks
     const allChunks: any[] = [];
     for (const filePath of targetFiles) {
       try {
         const fileContent = await this.gitManager.getDiff('HEAD', undefined, { contextLines: 3 });
         if (fileContent.length > 0 && fileContent[0]) {
-          // Get content from diff hunks
+
           const content = fileContent[0].hunks.map(hunk =>
             hunk.lines.map(line => line.content).join('\n')
           ).join('\n');
           const chunks = await this.codeChunker.chunkCode(content, filePath);
-          // Convert CodeChunk to ReviewChunk format
+
           const reviewChunks = chunks.map(chunk => ({
             ...chunk,
             file: chunk.metadata?.['file'] || filePath
@@ -101,14 +98,12 @@ export class ReviewGenerator {
 
     logInfo(`🧩 Split changes into ${allChunks.length} chunks for analysis`);
 
-    // Generate review using LLM
     logInfo('🤖 Generating review with LLM...');
     const review = await this.ollamaService.generateReview(allChunks, {
       deep: options.deepAnalysis || false,
       escalate: options.forceEscalate || false
     });
 
-    // Calculate complexity based on issues
     const complexity = this.calculateComplexity(review.details);
 
     return {

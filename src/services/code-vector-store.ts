@@ -2,7 +2,6 @@ import { VectorStore, VectorDocument, SearchResult } from './vector-store';
 import { CommitIndexType } from '../models/state';
 import logger from '../utils/logger';
 
-// Code-specific document types
 export interface CommitSummaryDocument extends VectorDocument {
   payload: {
     commit_sha: string;
@@ -36,7 +35,6 @@ export interface CodeChunkDocument extends VectorDocument {
   };
 }
 
-// Search result types for code documents
 export interface CommitSearchResult extends SearchResult {
   payload: CommitSummaryDocument['payload'];
 }
@@ -53,22 +51,18 @@ export class CodeVectorStore extends VectorStore {
 
   constructor(url?: string, apiKey?: string, timeout?: number) {
     super(url, apiKey, timeout);
-    // Collections will be initialized on-demand when first needed
+
   }
 
-  /**
-   * Initialize the required collections for code review
-   */
   private async initializeCollections(): Promise<void> {
     try {
-      // Create commit summaries collection
+
       await this.createCollection(
         this.COMMIT_SUMMARIES_COLLECTION,
         this.COMMIT_DIMENSION,
         'Cosine'
       );
 
-      // Create code chunks collection
       await this.createCollection(
         this.CODE_CHUNKS_COLLECTION,
         this.CODE_CHUNK_DIMENSION,
@@ -86,23 +80,19 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Index a commit summary with its embedding
-   */
   async indexCommitSummary(
     commitIndex: CommitIndexType,
     embedding?: number[]
   ): Promise<void> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
-      
-      // Generate embedding if not provided
+
       let commitEmbedding: number[];
       if (embedding) {
         commitEmbedding = embedding;
       } else {
-        // Use only the summary since that's what's available in CommitIndexType
+
         const commitText = commitIndex.summary;
         commitEmbedding = await this.generateEmbedding(commitText);
       }
@@ -112,16 +102,16 @@ export class CodeVectorStore extends VectorStore {
         payload: {
           commit_sha: commitIndex.sha,
           summary: commitIndex.summary,
-          author: 'Unknown', // Not available in current schema
-          author_email: '', // Not available in current schema
+          author: 'Unknown',
+          author_email: '',
           commit_date: commitIndex.indexed_at?.toISOString() || new Date().toISOString(),
-          files_changed: [], // Not available in current schema
-          lines_added: 0, // Not available in current schema
-          lines_deleted: 0, // Not available in current schema
-          message: commitIndex.summary, // Use summary as message
-          branch: 'main', // Default value
-          tags: [], // Not available in current schema
-          metadata: {}, // Not available in current schema
+          files_changed: [],
+          lines_added: 0,
+          lines_deleted: 0,
+          message: commitIndex.summary,
+          branch: 'main',
+          tags: [],
+          metadata: {},
         },
         vector: commitEmbedding,
       };
@@ -137,9 +127,6 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Index code chunks with their embeddings
-   */
   async indexCodeChunks(
     chunks: Array<{
       chunkId: string;
@@ -157,7 +144,7 @@ export class CodeVectorStore extends VectorStore {
     embeddings?: number[][]
   ): Promise<void> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
       
       const documents: CodeChunkDocument[] = [];
@@ -165,8 +152,7 @@ export class CodeVectorStore extends VectorStore {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         if (!chunk) continue;
-        
-        // Generate embedding if not provided
+
         let chunkEmbedding: number[];
         if (embeddings && embeddings[i]) {
           const embedding = embeddings[i];
@@ -211,16 +197,13 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Search for similar commits
-   */
   async searchSimilarCommits(
     query: string,
     limit: number = 10,
     scoreThreshold: number = 0.7
   ): Promise<CommitSearchResult[]> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
       
       const queryEmbedding = await this.generateEmbedding(query);
@@ -240,9 +223,6 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Search for similar code chunks
-   */
   async searchSimilarCodeChunks(
     query: string,
     limit: number = 10,
@@ -251,12 +231,11 @@ export class CodeVectorStore extends VectorStore {
     language?: string
   ): Promise<CodeChunkSearchResult[]> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
       
       const queryEmbedding = await this.generateEmbedding(query);
-      
-      // Build filter if file path or language specified
+
       let filter: Record<string, any> | undefined;
       if (_filePath || language) {
         filter = {
@@ -293,29 +272,23 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Find commits related to specific code changes
-   */
   async findRelatedCommits(
     codeContent: string,
     _filePath?: string,
     limit: number = 5
   ): Promise<CommitSearchResult[]> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
-      
-      // First find similar code chunks
+
       const codeChunks = await this.searchSimilarCodeChunks(
         codeContent,
-        limit * 2, // Get more chunks to find diverse commits
+        limit * 2,
         0.6
       );
 
-      // Extract unique commit SHAs
       const commitShas = [...new Set(codeChunks.map(chunk => chunk.payload.commit_sha))];
-      
-      // Get commit summaries for these SHAs
+
       const commitSummaries: CommitSearchResult[] = [];
       
       for (const sha of commitShas.slice(0, limit)) {
@@ -323,7 +296,7 @@ export class CodeVectorStore extends VectorStore {
         if (commit) {
           commitSummaries.push({
             id: commit.id,
-            score: 1.0, // Direct match
+            score: 1.0,
             payload: commit.payload as CommitSummaryDocument['payload'],
           });
         }
@@ -335,15 +308,12 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Batch index multiple commits
-   */
   async batchIndexCommits(
     commits: CommitIndexType[],
     embeddings?: number[][]
   ): Promise<void> {
     try {
-      // Ensure collections are initialized
+
       await this.initializeCollections();
       
       const documents: CommitSummaryDocument[] = [];
@@ -351,8 +321,7 @@ export class CodeVectorStore extends VectorStore {
       for (let i = 0; i < commits.length; i++) {
         const commit = commits[i];
         if (!commit) continue;
-        
-        // Generate embedding if not provided
+
         let commitEmbedding: number[];
         if (embeddings && embeddings[i]) {
           const embedding = embeddings[i];
@@ -400,9 +369,6 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Get commit summary by SHA
-   */
   async getCommitSummary(commitSha: string): Promise<CommitSummaryDocument | null> {
     try {
       const document = await this.getDocument(this.COMMIT_SUMMARIES_COLLECTION, commitSha);
@@ -416,9 +382,6 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Get code chunk by ID
-   */
   async getCodeChunk(chunkId: string): Promise<CodeChunkDocument | null> {
     try {
       const document = await this.getDocument(this.CODE_CHUNKS_COLLECTION, chunkId);
@@ -432,19 +395,15 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Delete commit and related code chunks
-   */
   async deleteCommitAndChunks(commitSha: string): Promise<void> {
     try {
-      // Delete commit summary
+
       await this.deleteDocuments(this.COMMIT_SUMMARIES_COLLECTION, [commitSha]);
-      
-      // Find and delete related code chunks
+
       const codeChunks = await this.searchSimilarCodeChunks(
-        commitSha, // Use SHA as query to find related chunks
-        1000, // Large limit to find all related chunks
-        0.1 // Low threshold to catch all related chunks
+        commitSha,
+        1000,
+        0.1
       );
       
       const chunkIds = codeChunks
@@ -464,9 +423,6 @@ export class CodeVectorStore extends VectorStore {
     }
   }
 
-  /**
-   * Get collection statistics for code review
-   */
   async getCodeReviewStats(): Promise<{
     totalCommits: number;
     totalCodeChunks: number;

@@ -26,14 +26,12 @@ export function markResolvedCommand(program: Command): void {
         logInfo(`🔄 Updating comment status to: ${status}`);
         console.log(chalk.blue(`🔄 Updating comment status to: ${status}`));
 
-        // Check if system is initialized
         const codeReviewDir = path.join(process.cwd(), '.code_review');
         if (!fs.existsSync(codeReviewDir)) {
           console.error(chalk.red('❌ Code review system not initialized. Run "code-review init" first.'));
           process.exit(1);
         }
 
-        // Load existing comments if available
         let comments: any[] = [];
         try {
           const stateFile = path.join(codeReviewDir, 'state', 'state.json');
@@ -45,7 +43,6 @@ export function markResolvedCommand(program: Command): void {
           console.log(chalk.yellow('⚠️  Could not load existing comments'));
         }
 
-        // Simulate comment management
         if (id) {
           const comment = comments.find((c: any) => c.id === id);
           if (comment) {
@@ -71,7 +68,6 @@ export function markResolvedCommand(program: Command): void {
           console.log(chalk.green(`✅ Updated ${pendingComments.length} pending comments`));
         }
 
-        // Save updated comments
         try {
           const stateFile = path.join(codeReviewDir, 'state', 'state.json');
           const stateData = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};

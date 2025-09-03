@@ -80,22 +80,23 @@ type ReviewDetail = {
 export class OllamaService {
   private configManager: ConfigManager;
   private anthropicService?: AnthropicService;
+  private configLoaded: boolean = false;
 
   constructor(_config?: OllamaConfig) {
     this.configManager = new ConfigManager();
+  }
 
-    // Load configuration
-    this.configManager.loadConfig().catch(error => {
-      console.warn('Failed to load config in OllamaService:', error.message);
-    });
-
-    // Initialize cloud service if API key exists (lazy initialization)
-    // We'll check this when actually needed
+  private async ensureConfigLoaded(): Promise<void> {
+    if (!this.configLoaded) {
+      await this.configManager.loadConfig();
+      this.configLoaded = true;
+    }
   }
 
   private async ensureAnthropicService(): Promise<void> {
     if (!this.anthropicService) {
-      const apiKey = this.configManager.get('cloud_llm.api_key');
+      await this.ensureConfigLoaded();
+      const apiKey = this.configManager.getConfigValue('cloud_llm.api_key');
       if (apiKey) {
         this.anthropicService = new AnthropicService();
       }
@@ -145,7 +146,22 @@ export class OllamaService {
       try {
         return JSON.parse(text) as OllamaGenerateResponse;
       } catch (parseError) {
+        // If JSON parsing fails, check if it's plain text response
+        console.warn('JSON parse failed, attempting to handle as plain text response');
+
+        // If the response looks like plain text (not JSON), wrap it in expected format
+        if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+          console.log('Treating response as plain text, wrapping in JSON format');
+          return {
+            model: request.model,
+            response: text.trim(),
+            done: true
+          } as OllamaGenerateResponse;
+        }
+
+        // If it's malformed JSON, log more details
         console.error('JSON parse error. Raw response:', text);
+        console.error('Parse error details:', parseError instanceof Error ? parseError.message : String(parseError));
         throw new Error(`Failed to parse Ollama response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
       }
     } catch (error) {
@@ -154,14 +170,18 @@ export class OllamaService {
   }
 
   private async generateLocalReview(prompt: string): Promise<string> {
+    await this.ensureConfigLoaded();
     const config = this.configManager.getConfig();
-    const model = config.local_llm?.model || 'llama3.1:8b';
+
+    // Safely access local_llm configuration with defaults
+    const localLlm = config.local_llm || {};
+    const model = (localLlm as any).model || 'llama3.1:8b';
 
     const request: OllamaGenerateRequest = {
       model: model,
       prompt: prompt,
       options: {
-        temperature: config.local_llm?.temperature || 0.1,
+        temperature: (localLlm as any).temperature || 0.1,
       },
     };
 
@@ -178,12 +198,17 @@ export class OllamaService {
       throw new Error('Cloud escalation not configured - missing API key. Set cloud_llm.api_key in configuration.');
     }
 
+    // Get the model from config, fallback to claude-3-haiku if not specified
+    const config = await this.configManager.loadConfig();
+    const cloudLlm = config.cloud_llm || {};
+    const model = (cloudLlm as any).model || 'claude-3-haiku-20240307';
+
     const response = await this.anthropicService.generateReview(prompt, {
-      model: options.deep ? 'claude-2' : 'claude-instant',
+      model: model,
       maxTokens: options.escalate ? 4000 : 2000,
     });
 
-    return this.parseReviewResponse(response);
+    return this.parseReviewResponse(response.content);
   }
 
   async generateReview(
@@ -192,13 +217,18 @@ export class OllamaService {
   ): Promise<ReviewResponse> {
     const prompt = this.buildReviewPrompt(chunks, options);
 
+    // If escalation is forced, go directly to cloud
+    if (options.escalate) {
+      return this.escalateToCloud(prompt, options);
+    }
+
     try {
       // First try local Ollama
       const response = await this.generateLocalReview(prompt);
       return this.parseReviewResponse(response);
     } catch (error) {
-      if (options.escalate || error instanceof Error && error.message.includes('timeout')) {
-        // Fallback to cloud if local fails or escalation forced
+      if (error instanceof Error && error.message.includes('timeout')) {
+        // Fallback to cloud only on timeout
         return this.escalateToCloud(prompt, options);
       }
       throw error;
@@ -235,13 +265,31 @@ export class OllamaService {
 
   private parseReviewResponse(response: string): ReviewResponse {
     try {
-      // Fixed regex pattern with proper termination
-      const jsonMatch = response.match(/```json\n([\s\S]+?)\n```/);
+      // First try to extract JSON from markdown code blocks
+      const jsonMatch = response.match(/```(?:json)?\s*\n?([\s\S]+?)\n?\s*```/);
       if (jsonMatch && jsonMatch[1]) {
-        return JSON.parse(jsonMatch[1]);
+        console.log('Found JSON in code block, parsing:', jsonMatch[1].substring(0, 100) + '...');
+        return JSON.parse(jsonMatch[1].trim());
       }
-      return JSON.parse(response);
+
+      // Try to parse the entire response as JSON
+      console.log('Attempting to parse entire response as JSON:', response.substring(0, 100) + '...');
+      return JSON.parse(response.trim());
     } catch (err) {
+      console.error('Failed to parse review response. Raw response:', response);
+      console.error('Parse error:', err instanceof Error ? err.message : String(err));
+
+      // As a last resort, try to extract any JSON-like content
+      const jsonLikeMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonLikeMatch) {
+        try {
+          console.log('Attempting to parse JSON-like content:', jsonLikeMatch[0]);
+          return JSON.parse(jsonLikeMatch[0]);
+        } catch (finalErr) {
+          console.error('Final parse attempt failed:', finalErr);
+        }
+      }
+
       throw new Error(`Failed to parse review response: ${err instanceof Error ? err.message : String(err)}`);
     }
   }

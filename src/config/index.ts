@@ -1,9 +1,8 @@
-// Configuration module exports
+
 export * from './schemas';
 export * from './config-manager';
 export * from './migrations';
 
-// Import schemas for local use
 import {
   AppConfigSchema,
   LLMConfigSchema,
@@ -14,7 +13,6 @@ import {
   BackupConfigSchema,
 } from './schemas';
 
-// Re-export commonly used types and schemas
 export {
   AppConfigSchema,
   LLMConfigSchema,
@@ -37,7 +35,6 @@ export {
   Migration,
 } from './migrations';
 
-// Default configuration factory
 export const createDefaultConfig = () => AppConfigSchema.parse({
   version: '1.0.0',
   schema_version: '1.0.0',
@@ -76,8 +73,7 @@ export const createDefaultConfig = () => AppConfigSchema.parse({
   git: {
     max_commits_per_review: 50,
     max_files_per_commit: 100,
-    exclude_patterns: ['node_modules/**', 'dist/**', '*.log'],
-    include_patterns: ['**/*.ts', '**/*.js', '**/*.py', '**/*.java'],
+    exclude_patterns: ['node_modules*.ts', '***.py', '**/*.java'],
     max_file_size_kb: 1024,
     max_history_days: 365,
   },
@@ -130,7 +126,6 @@ export const createDefaultConfig = () => AppConfigSchema.parse({
   },
 });
 
-// Environment variable utilities
 export const getEnvConfigValue = (envVar: string): string | undefined => {
   return process.env[envVar];
 };
@@ -139,7 +134,6 @@ export const setEnvConfigValue = (envVar: string, value: string): void => {
   process.env[envVar] = value;
 };
 
-// Configuration validation utilities
 export const validateConfigFile = (configPath: string): boolean => {
   try {
     const fs = require('fs');

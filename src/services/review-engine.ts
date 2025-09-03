@@ -55,11 +55,8 @@ export class ReviewEngine {
     this.initializePromptTemplates();
   }
 
-  /**
-   * Initialize prompt templates for different review types
-   */
   private initializePromptTemplates(): void {
-    // Security review template
+
     this.promptTemplates.set('security', {
       name: 'Security Review',
       systemPrompt: `You are a security expert code reviewer. Analyze code for security vulnerabilities, 
@@ -109,7 +106,6 @@ Provide security review comments in JSON format:
       ]
     });
 
-    // Performance review template
     this.promptTemplates.set('performance', {
       name: 'Performance Review',
       systemPrompt: `You are a performance optimization expert. Analyze code for performance issues 
@@ -164,7 +160,6 @@ Provide performance review comments in JSON format:
       ]
     });
 
-    // Style review template
     this.promptTemplates.set('style', {
       name: 'Style Review',
       systemPrompt: `You are a code style and best practices expert. Review code for consistency, 
@@ -230,9 +225,6 @@ Provide style review comments in JSON format:
     });
   }
 
-  /**
-   * Generate review for a code file
-   */
   async generateReview(
     filePath: string,
     code: string,
@@ -256,10 +248,8 @@ Provide style review comments in JSON format:
         reviewTypes: reviewOptions.reviewTypes
       });
 
-      // Step 1: Chunk the code
       const chunks = await this.codeChunker.chunkCode(code, filePath, { maxChunkSize: 1000 });
-      
-      // Step 2: Build context from vector store
+
       const context = await this.buildReviewContext(
         filePath,
         chunks,
@@ -267,7 +257,6 @@ Provide style review comments in JSON format:
         reviewOptions
       );
 
-      // Step 3: Generate reviews for each chunk
       const allComments: ReviewCommentType[] = [];
       let totalQualityScore = 0;
       let totalConfidenceScore = 0;
@@ -286,10 +275,8 @@ Provide style review comments in JSON format:
         totalContextRelevance += chunkResult.contextRelevance;
       }
 
-      // Step 4: Deduplicate comments
       const deduplicatedComments = this.deduplicateComments(allComments);
 
-      // Step 5: Calculate overall scores
       const avgQualityScore = totalQualityScore / chunks.length;
       const avgConfidenceScore = totalConfidenceScore / chunks.length;
       const avgContextRelevance = totalContextRelevance / chunks.length;
@@ -322,9 +309,6 @@ Provide style review comments in JSON format:
     }
   }
 
-  /**
-   * Build review context from vector store
-   */
   private async buildReviewContext(
     filePath: string,
     chunks: CodeChunk[],
@@ -332,28 +316,25 @@ Provide style review comments in JSON format:
     options: ReviewOptions
   ): Promise<ReviewContext> {
     try {
-      // Find similar code chunks using the generic search method
+
       const similarChunks: CodeChunkDocument[] = [];
       for (const chunk of chunks) {
-        // Generate embedding for the chunk content
+
         const embedding = await this.codeVectorStore.generateEmbedding(chunk.content);
-        
-        // Search for similar chunks in the code_chunks collection
+
         const searchResults = await this.codeVectorStore.search(
           'code_chunks',
           embedding,
           options.maxSimilarChunks,
-          0.7, // score threshold
-          true, // with payload
-          false // without vector
+          0.7,
+          true,
+          false
         );
 
-        // Filter out results from the same commit
         const filteredResults = searchResults.filter(result => 
           result.payload['commit_sha'] !== commitSha
         );
 
-        // Convert to CodeChunkDocument format
         const chunkDocuments = filteredResults.map(result => ({
           id: result.id,
           payload: {
@@ -375,18 +356,16 @@ Provide style review comments in JSON format:
         similarChunks.push(...chunkDocuments);
       }
 
-      // Get commit history for context
       const commitEmbedding = await this.codeVectorStore.generateEmbedding(`file changes in ${filePath}`);
       const commitHistoryResults = await this.codeVectorStore.search(
         'commit_summaries',
         commitEmbedding,
         options.maxCommitHistory,
-        0.6, // score threshold
-        true, // with payload
-        false // without vector
+        0.6,
+        true,
+        false
       );
 
-      // Convert to CommitSummaryDocument format
       const commitHistory = commitHistoryResults.map(result => ({
         id: result.id,
         payload: {
@@ -405,7 +384,6 @@ Provide style review comments in JSON format:
         score: result.score
       }));
 
-      // Extract language from file path
       const language = this.detectLanguageFromPath(filePath);
 
       return {
@@ -421,7 +399,6 @@ Provide style review comments in JSON format:
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 
-      // Return minimal context
       return {
         similarChunks: [],
         commitHistory: [],
@@ -431,9 +408,6 @@ Provide style review comments in JSON format:
     }
   }
 
-  /**
-   * Review a single code chunk
-   */
   private async reviewCodeChunk(
     chunk: CodeChunk,
     context: ReviewContext,
@@ -457,7 +431,7 @@ Provide style review comments in JSON format:
 
         const prompt = this.buildPrompt(template, chunk, context, options);
         const response = await this.ollamaService.generate({
-          model: 'codellama:7b', // Default model, can be configurable
+          model: 'codellama:7b',
           prompt,
           options: {
             temperature: options.temperature,
@@ -473,7 +447,6 @@ Provide style review comments in JSON format:
 
         comments.push(...parsedComments);
 
-        // Calculate scores for this review type
         const scores = this.calculateReviewScores(
           parsedComments,
           context,
@@ -493,7 +466,6 @@ Provide style review comments in JSON format:
       }
     }
 
-    // Calculate averages
     const avgQualityScore = reviewCount > 0 ? totalQualityScore / reviewCount : 0;
     const avgConfidenceScore = reviewCount > 0 ? totalConfidenceScore / reviewCount : 0;
     const avgContextRelevance = reviewCount > 0 ? totalContextRelevance / reviewCount : 0;
@@ -506,9 +478,6 @@ Provide style review comments in JSON format:
     };
   }
 
-  /**
-   * Build prompt from template
-   */
   private buildPrompt(
     template: PromptTemplate,
     chunk: CodeChunk,
@@ -535,16 +504,13 @@ Provide style review comments in JSON format:
     return prompt;
   }
 
-  /**
-   * Parse review response from LLM
-   */
   private parseReviewResponse(
     response: string,
     chunk: CodeChunk,
     reviewType: string
   ): ReviewCommentType[] {
     try {
-      // Extract JSON from response
+
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         logger.warn('No JSON found in review response', { response });
@@ -580,9 +546,6 @@ Provide style review comments in JSON format:
     }
   }
 
-  /**
-   * Deduplicate comments based on similarity
-   */
   private deduplicateComments(comments: ReviewCommentType[]): ReviewCommentType[] {
     const uniqueComments: ReviewCommentType[] = [];
     const seenPatterns = new Set<string>();
@@ -598,9 +561,6 @@ Provide style review comments in JSON format:
     return uniqueComments;
   }
 
-  /**
-   * Calculate review quality scores
-   */
   private calculateReviewScores(
     comments: ReviewCommentType[],
     context: ReviewContext,
@@ -610,26 +570,24 @@ Provide style review comments in JSON format:
     confidenceScore: number;
     contextRelevance: number;
   } {
-    // Quality score based on comment specificity and actionability
+
     const qualityScore = comments.reduce((score, comment) => {
-      let commentScore = 0.5; // Base score
+      let commentScore = 0.5;
       
-      if (comment.message.length > 50) commentScore += 0.2; // Detailed message
-      if (comment.severity === 'critical' || comment.severity === 'high') commentScore += 0.2; // Important issues
-      if (comment.message.includes('suggestion') || comment.message.includes('should')) commentScore += 0.1; // Actionable
+      if (comment.message.length > 50) commentScore += 0.2;
+      if (comment.severity === 'critical' || comment.severity === 'high') commentScore += 0.2;
+      if (comment.message.includes('suggestion') || comment.message.includes('should')) commentScore += 0.1;
       
       return score + commentScore;
     }, 0) / Math.max(comments.length, 1);
 
-    // Confidence score based on context availability
     const contextRelevance = Math.min(
       (context.similarChunks.length / 5) * 0.4 + 
       (context.commitHistory.length / 3) * 0.3 + 
-      0.3, // Base confidence
+      0.3,
       1.0
     );
 
-    // Overall confidence
     const confidenceScore = (qualityScore + contextRelevance) / 2;
 
     return {
@@ -639,9 +597,6 @@ Provide style review comments in JSON format:
     };
   }
 
-  /**
-   * Helper methods
-   */
   private detectLanguageFromPath(filePath: string): string {
     const ext = filePath.split('.').pop()?.toLowerCase() || '';
     const languageMap: Record<string, string> = {

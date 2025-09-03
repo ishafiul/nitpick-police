@@ -27,8 +27,7 @@ export function configCommand(program: Command): void {
           console.error(chalk.red('❌ Configuration file not found. Run "code-review init" to create default config.'));
           process.exit(1);
         }
-        
-        // Load current configuration
+
         const currentConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         
         if (show) {
@@ -51,31 +50,27 @@ export function configCommand(program: Command): void {
         if (setKey && setValue) {
           const key = setKey;
           const value = setValue;
-          
-                          // Implement set logic with validation
+
                 const keys = key.split('.');
                 let current = currentConfig;
-                
-                // Navigate to the parent object
+
                 for (let i = 0; i < keys.length - 1; i++) {
                   if (!current[keys[i]]) {
                     current[keys[i]] = {};
                   }
                   current = current[keys[i]];
                 }
-                
-                // Set the value
+
                 const lastKey = keys[keys.length - 1];
                 current[lastKey] = value;
-                
-                // Save updated config
+
                 fs.writeFileSync(configFile, JSON.stringify(currentConfig, null, 2));
                 console.log(chalk.green(`✅ Set ${key} = ${value}`));
                 return;
         }
         
                     if (reset) {
-              // Create default configuration
+
               const defaultConfig = {
                 llm: {
                   provider: 'ollama',
@@ -93,7 +88,7 @@ export function configCommand(program: Command): void {
                   autoIndex: true
                 },
                 review: {
-                  maxFileSize: 1024 * 1024, // 1MB
+                  maxFileSize: 1024 * 1024,
                   supportedLanguages: ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'go', 'rs']
                 }
               };
@@ -132,8 +127,7 @@ export function configCommand(program: Command): void {
         if (importPath) {
           try {
                             const importedConfig = JSON.parse(fs.readFileSync(importPath, 'utf8'));
-                
-                // Validate imported config structure
+
                 const validationResult = validateConfig(importedConfig);
                 if (!validationResult.valid) {
                   console.error(chalk.red('❌ Imported configuration is invalid:'));
@@ -151,8 +145,7 @@ export function configCommand(program: Command): void {
           }
           return;
         }
-        
-        // Default: show configuration summary
+
         console.log(chalk.blue('⚙️  Configuration Summary:'));
         console.log(chalk.cyan('Local LLM Provider:'), currentConfig.local_llm?.provider || 'Not set');
         console.log(chalk.cyan('Local LLM Model:'), currentConfig.local_llm?.model || 'Not set');

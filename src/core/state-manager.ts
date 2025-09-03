@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { AppStateType, validateAppState, serializeState, deserializeState } from '../models/state';
-import { MigrationManager } from './migrations';
+
 
 export class StateManagerError extends Error {
   constructor(message: string, public readonly cause?: Error) {
@@ -16,13 +16,13 @@ export class StateManager {
   private readonly backupDir: string;
   private state: AppStateType;
   private isInitialized = false;
-  private migrationManager: MigrationManager;
+
 
   constructor(projectRoot: string = process.cwd()) {
     this.stateDir = path.join(projectRoot, '.code_review');
     this.stateFile = path.join(this.stateDir, 'state.json');
     this.backupDir = path.join(this.stateDir, 'backups');
-    this.migrationManager = new MigrationManager();
+
     
     // Initialize with default state
     this.state = this.createDefaultState();
@@ -56,11 +56,7 @@ export class StateManager {
       if (await this.stateFileExists()) {
         await this.loadState();
         
-        // Check if migration is needed
-        if (this.migrationManager.needsMigration(this.state)) {
-          console.log('State migration required, applying pending migrations...');
-          await this.applyMigrations();
-        }
+
       } else {
         // Create initial state file
         await this.saveState();
@@ -173,18 +169,7 @@ export class StateManager {
     return { ...this.state };
   }
 
-  /**
-   * Apply pending migrations
-   */
-  private async applyMigrations(): Promise<void> {
-    try {
-      this.state = await this.migrationManager.migrateUp(this.state);
-      await this.saveState();
-      console.log('Migrations applied successfully');
-    } catch (error) {
-      throw new StateManagerError('Failed to apply migrations', error as Error);
-    }
-  }
+
 
   /**
    * Attempt recovery from backup
@@ -352,24 +337,5 @@ export class StateManager {
     return this.backupDir;
   }
 
-  /**
-   * Get migration manager
-   */
-  getMigrationManager(): MigrationManager {
-    return this.migrationManager;
-  }
 
-  /**
-   * Check if migration is needed
-   */
-  needsMigration(): boolean {
-    return this.migrationManager.needsMigration(this.state);
-  }
-
-  /**
-   * Get migration history
-   */
-  getMigrationHistory() {
-    return this.migrationManager.getMigrationHistory(this.state);
-  }
 }

@@ -17,18 +17,16 @@ export function showCommand(program: Command): void {
           process.exit(1);
         }
 
-        // Find the review file - handle both short IDs and full IDs
         const reviewFiles = fs.readdirSync(reviewsDir)
           .filter(file => file.endsWith('.json'));
 
         let targetFile: string | null = null;
 
-        // First try exact match
         const exactMatch = reviewFiles.find(file => file === `${reviewId}.json`);
         if (exactMatch) {
           targetFile = exactMatch;
         } else {
-          // Try partial match (short ID)
+
           const partialMatch = reviewFiles.find(file => file.endsWith(`${reviewId}.json`));
           if (partialMatch) {
             targetFile = partialMatch;
@@ -41,7 +39,6 @@ export function showCommand(program: Command): void {
           process.exit(1);
         }
 
-        // Load review data
         const reviewPath = path.join(reviewsDir, targetFile);
         const content = JSON.parse(fs.readFileSync(reviewPath, 'utf8'));
         const review = {
@@ -53,7 +50,6 @@ export function showCommand(program: Command): void {
           details: content.details || []
         };
 
-        // Display review header
         console.log('');
         console.log(chalk.blue.bold('🔍 Code Review Details'));
         console.log(chalk.gray('═'.repeat(50)));
@@ -72,7 +68,6 @@ export function showCommand(program: Command): void {
           console.log(chalk.gray(review.summary));
         }
 
-        // Group details by file
         const fileGroups = groupByFile(review.details);
 
         if (Object.keys(fileGroups).length === 0) {
@@ -85,7 +80,6 @@ export function showCommand(program: Command): void {
         console.log(chalk.blue.bold('📁 File-by-File Analysis'));
         console.log(chalk.gray('═'.repeat(50)));
 
-        // Display each file's issues
         Object.entries(fileGroups).forEach(([filePath, issues], fileIndex) => {
           console.log('');
           console.log(chalk.yellow.bold(`${fileIndex + 1}. 📄 ${filePath}`));
@@ -116,7 +110,6 @@ export function showCommand(program: Command): void {
           });
         });
 
-        // Display severity summary
         const severityCounts = getSeverityCounts(review.details);
         if (Object.values(severityCounts).some(count => count > 0)) {
           console.log('');
@@ -142,7 +135,6 @@ export function showCommand(program: Command): void {
     });
 }
 
-// Helper functions
 function getStatusColor(status: string): string {
   const statusColors: { [key: string]: (text: string) => string } = {
     'pending': chalk.yellow,
