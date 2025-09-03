@@ -4,7 +4,7 @@
   "description": "CLI tool for intelligent code reviews with state persistence",
   "main": "dist/index.js",
   "bin": {
-    "code-review": "./dist/index.js"
+    "np": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
