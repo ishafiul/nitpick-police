@@ -33,10 +33,10 @@ chmod +x dist/index.js
 
 ```bash
 # Minimal
-npx node dist/index.js init
+np init
 
 # With explicit providers
-npx node dist/index.js init \
+np init \
   --anthropic-key "<YOUR_ANTHROPIC_API_KEY>" \
   --qdrant-url "http://localhost:6333" \
   --ollama-url "http://localhost:11434"
@@ -53,7 +53,7 @@ docker run -p 6333:6333 qdrant/qdrant:latest
 Then validate:
 
 ```bash
-npx node dist/index.js qdrant-test  # if registered in your build; otherwise skip
+np qdrant-test  # if registered in your build; otherwise skip
 ```
 
 ## Configuration
@@ -73,7 +73,7 @@ You can view or edit via the `config` command (see below), or modify the file di
 All commands below are invoked as:
 
 ```bash
-node dist/index.js <command> [options]
+np <command> [options]
 ```
 
 Run `--help` on any command to see full options.
@@ -91,8 +91,8 @@ Initialize code review configuration for the project.
 
 Examples:
 ```bash
-node dist/index.js init
-node dist/index.js init --anthropic-key "sk-ant-..." --qdrant-url http://localhost:6333
+np init
+np init --anthropic-key "sk-ant-..." --qdrant-url http://localhost:6333
 ```
 
 ---
@@ -102,9 +102,9 @@ Show or manage configuration values. Supports viewing sections or entire config.
 
 Examples:
 ```bash
-node dist/index.js config --show
-node dist/index.js config --get qdrant.url
-node dist/index.js config --set qdrant.url http://localhost:6333
+np config --show
+np config --get qdrant.url
+np config --set qdrant.url http://localhost:6333
 ```
 
 ---
@@ -113,7 +113,7 @@ node dist/index.js config --set qdrant.url http://localhost:6333
 Show current review/indexing status for this repo.
 
 ```bash
-node dist/index.js status
+np status
 ```
 
 ---
@@ -122,7 +122,7 @@ node dist/index.js status
 List stored reviews.
 
 ```bash
-node dist/index.js list --limit 20 --json
+np list --limit 20 --json
 ```
 
 ---
@@ -131,7 +131,7 @@ node dist/index.js list --limit 20 --json
 Show a specific stored review in detail.
 
 ```bash
-node dist/index.js show <reviewId>
+np show <reviewId>
 ```
 
 ---
@@ -140,7 +140,7 @@ node dist/index.js show <reviewId>
 Mark review comments as resolved.
 
 ```bash
-node dist/index.js mark-resolved --id <reviewId> [--all]
+np mark-resolved --id <reviewId> [--all]
 ```
 
 ---
@@ -149,7 +149,7 @@ node dist/index.js mark-resolved --id <reviewId> [--all]
 Index repository history (commit summaries) for richer retrieval.
 
 ```bash
-node dist/index.js index-history --since HEAD~50
+np index-history --since HEAD~50
 ```
 
 ---
@@ -169,8 +169,8 @@ Common options:
 
 Examples:
 ```bash
-node dist/index.js search "debounce implementation" -l typescript -k 15 --page 1 --page-size 10
-node dist/index.js search "auth middleware bug" --directory src/server --max-tokens 3000 --dry-run
+np search "debounce implementation" -l typescript -k 15 --page 1 --page-size 10
+np search "auth middleware bug" --directory src/server --max-tokens 3000 --dry-run
 ```
 
 ---
@@ -179,7 +179,7 @@ node dist/index.js search "auth middleware bug" --directory src/server --max-tok
 Search within a specific file.
 
 ```bash
-node dist/index.js search-file src/utils/tokens.ts "estimate"
+np search-file src/utils/tokens.ts "estimate"
 ```
 
 ---
@@ -188,7 +188,7 @@ node dist/index.js search-file src/utils/tokens.ts "estimate"
 Show retrieval system statistics (Qdrant collections, service config).
 
 ```bash
-node dist/index.js search-stats --verbose
+np search-stats --verbose
 ```
 
 ---
@@ -203,8 +203,8 @@ Common options:
 
 Examples:
 ```bash
-node dist/index.js compose "review core query builder" --directory src/services --token-budget 6000 --preview
-node dist/index.js compose "security review" --file src/server/auth.ts --output .code_review/prompts/auth.json
+np compose "review core query builder" --directory src/services --token-budget 6000 --preview
+np compose "security review" --file src/server/auth.ts --output .code_review/prompts/auth.json
 ```
 
 ---
@@ -215,14 +215,14 @@ Generate a cloud review using a composed prompt (prepared file) or a direct, on�
 Two modes:
 1) From prepared prompt
 ```bash
-node dist/index.js review --from-prepared .code_review/prompts/auth.json --dry-run
-node dist/index.js review --from-prepared .code_review/prompts/auth.json --store --extract-insights
+np review --from-prepared .code_review/prompts/auth.json --dry-run
+np review --from-prepared .code_review/prompts/auth.json --store --extract-insights
 ```
 
 2) Direct cloud workflow (retrieval → composition → review)
 ```bash
-node dist/index.js review --file src/server/auth.ts --top-k 8 --budget 8000 --include-insights
-node dist/index.js review --since HEAD~5 --budget 9000 --include-diffs --store
+np review --file src/server/auth.ts --top-k 8 --budget 8000 --include-insights
+np review --since HEAD~5 --budget 9000 --include-diffs --store
 ```
 
 Common options:
@@ -233,23 +233,23 @@ Common options:
 
 ## Typical Workflow
 
-1) Initialize config: `init`
+1) Initialize config: `np init`
 2) (Optional) run Qdrant via Docker
-3) Explore repo with `search` / `search-file` / `search-stats`
-4) Compose prompt with `compose` (preview/dry-run to size)
-5) Call `review` (dry‑run first, then real run)
-6) View results with `list`/`show`; resolve comments with `mark-resolved`
+3) Explore repo with `np search` / `np search-file` / `np search-stats`
+4) Compose prompt with `np compose` (preview/dry-run to size)
+5) Call `np review` (dry‑run first, then real run)
+6) View results with `np list`/`np show`; resolve comments with `np mark-resolved`
 
 ## Troubleshooting
 
 - "Cannot reach Qdrant": Start Qdrant (`docker run -p 6333:6333 qdrant/qdrant`) and verify URL in `.code_review/config.json`.
-- "Cloud LLM configuration not found": Ensure `cloud_llm.api_key` is set (run `init` with `--anthropic-key` or edit config).
-- Timeouts: Increase `cloud_llm.timeout` or use `--timeout` on `review`.
+- "Cloud LLM configuration not found": Ensure `cloud_llm.api_key` is set (run `np init` with `--anthropic-key` or edit config).
+- Timeouts: Increase `cloud_llm.timeout` or use `--timeout` on `np review`.
 
 ## Contributing / Dev
 
 - TypeScript build: `npm run build`
-- Run CLI locally: `node dist/index.js --help`
+- Run CLI locally: `np --help`
 - Lint/format: `npm run lint` / `npm run format`
 
 ---
