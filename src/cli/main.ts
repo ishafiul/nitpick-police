@@ -13,13 +13,16 @@ import { indexHistoryCommand } from './commands/index-history';
 import { ReviewCommand } from './commands/enhanced-review';
 import { registerComposeCommand } from './commands/compose';
 import { registerSearchCommand } from './commands/search';
+import { registerCleanCommand } from './commands/clean';
+import { qdrantTestCommand } from './commands/qdrant-test';
+import { IndexCommand } from './commands/enhanced-index';
 
 const { version } = require('../../package.json');
 
 const program = new Command();
 
 program
-  .name('code-review')
+  .name('np')
   .description('Intelligent code review CLI with AI-powered analysis')
   .version(version, '-v, --version')
   .usage('<command> [options]');
@@ -41,9 +44,14 @@ indexHistoryCommand(program);
 
 registerComposeCommand(program);
 registerSearchCommand(program);
+registerCleanCommand(program);
+qdrantTestCommand(program);
 
 const review = new ReviewCommand();
 review.register(program);
+
+const index = new IndexCommand();
+index.register(program);
 
 program.parse();
 

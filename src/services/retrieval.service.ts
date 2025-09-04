@@ -303,10 +303,26 @@ export class RetrievalService {
       const filePaths = [...new Set(chunks.map(chunk => chunk.metadata.file))];
       const insights: RetrievalResult['insights'] = [];
 
+      // Check if review_insights collection has any data first
+      try {
+        const collectionStats = await this.qdrantService.getCollectionStats('review_insights');
+        if (collectionStats.count === 0) {
+          logger.debug('RetrievalService: Review insights collection is empty, skipping insights search');
+          return insights;
+        }
+      } catch (error) {
+        logger.debug('RetrievalService: Could not check review insights collection stats, skipping insights search', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return insights;
+      }
+
       for (const filePath of filePaths) {
         try {
           const fileChunks = chunks.filter(chunk => chunk.metadata.file === filePath);
-          const fileInsights = await this.qdrantService.searchReviewInsights(new Array(768).fill(0), {
+          // Use a proper vector instead of all zeros - generate a random normalized vector
+          const randomVector = Array.from({ length: 768 }, () => (Math.random() - 0.5) * 2);
+          const fileInsights = await this.qdrantService.searchReviewInsights(randomVector, {
             filter: { file: { match: { value: filePath } } },
             limit: 20,
           });

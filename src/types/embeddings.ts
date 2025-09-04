@@ -130,3 +130,4 @@ export function validateBatchEmbeddingRequest(data: unknown): BatchEmbeddingRequ
   return BatchEmbeddingRequestSchema.parse(data);
 }
 
+

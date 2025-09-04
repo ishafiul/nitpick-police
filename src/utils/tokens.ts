@@ -54,8 +54,14 @@ export function createTokenBudget(options: PromptOptions): TokenBudget {
   const allocatedTotal = Object.values(allocated).reduce((sum, val) => sum + val, 0);
   const remaining = options.tokenBudget - allocatedTotal;
 
+  // Distribute remaining tokens proportionally to avoid exceeding budget
   if (remaining > 0) {
-    allocated.context += remaining;
+    // Add remaining tokens to context, but cap at total budget
+    allocated.context = Math.min(allocated.context + remaining, options.tokenBudget - (allocatedTotal - allocated.context));
+  } else if (remaining < 0) {
+    // If we exceeded budget due to flooring, reduce context proportionally
+    const excess = Math.abs(remaining);
+    allocated.context = Math.max(0, allocated.context - excess);
   }
 
   const totalAllocated = Object.values(allocated).reduce((sum, val) => sum + val, 0);

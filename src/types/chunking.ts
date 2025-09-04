@@ -180,9 +180,10 @@ export function validateChunkingResult(data: unknown): ChunkingResult {
   return ChunkingResultSchema.parse(data) as ChunkingResult;
 }
 
-export function calculateChunkId(filePath: string, startLine: number, endLine: number): string {
-  const normalizedPath = filePath.replace(/\\/g, '/');
-  return `${normalizedPath}:${startLine}-${endLine}`;
+export function calculateChunkId(_filePath: string, _startLine: number, _endLine: number): string {
+  // Generate a UUID v4 for Qdrant compatibility
+  const crypto = require('crypto');
+  return crypto.randomUUID();
 }
 
 export function calculateContentHash(content: string): string {

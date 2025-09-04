@@ -5,7 +5,8 @@ import {
   CodeReview,
   CommitReview,
   cleanResponseText,
-  getValidationErrors
+  getValidationErrors,
+  CodeReviewSchema
 } from '../utils/json-extraction';
 import { ConfigManager } from '../config';
 import { ComposedPrompt } from '../types/prompt';
@@ -124,7 +125,7 @@ export class CloudReviewService {
       const review = parseCodeReviewResponse(extracted);
 
       if (!review) {
-        const validationErrors = getValidationErrors(parseCodeReviewResponse(extracted), {} as any);
+        const validationErrors = getValidationErrors(extracted, CodeReviewSchema);
         logger.error('Failed to parse code review response', {
           validationErrors,
           responsePreview: cleanedResponse.substring(0, 500) + '...',

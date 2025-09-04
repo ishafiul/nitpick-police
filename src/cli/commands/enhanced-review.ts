@@ -8,6 +8,7 @@ import { GitChangeService } from '../../services/git/git-change.service';
 import { ReviewStorageService } from '../../services/review-storage.service';
 import { QdrantReviewStorageService } from '../../services/qdrant-review-storage.service';
 import { InsightExtractionService } from '../../services/insight-extraction.service';
+import logger from '../../utils/logger';
 
 export class ReviewCommand extends BaseCommand {
   private cloudReviewService?: CloudReviewService;
@@ -27,7 +28,11 @@ export class ReviewCommand extends BaseCommand {
       .option('-s, --since <commit>', 'Review changes since commit (direct workflow)')
       .option('-a, --all', 'Review all files (direct workflow)')
       .option('-k, --top-k <number>', 'Number of chunks to retrieve (direct workflow)', parseInt, 5)
-      .option('-b, --budget <number>', 'Token budget for prompt (direct workflow)', parseInt, 8000)
+      .option('-b, --budget <number>', 'Token budget for prompt (direct workflow)', (value) => {
+        const parsed = parseInt(value, 10);
+        logger.debug('EnhancedReview: Parsing budget option', { value, parsed });
+        return parsed;
+      }, 8000)
       .option('-m, --model <model>', 'AI model to use', 'claude-3-5-haiku-20241022')
       .option('-t, --temperature <temp>', 'Model temperature (0.0-2.0)', parseFloat, 0.1)
       .option('--max-tokens <tokens>', 'Maximum tokens for response', parseInt, 4096)
@@ -70,6 +75,15 @@ export class ReviewCommand extends BaseCommand {
     await this.initialize();
 
     await this.validateGitRepository();
+
+    logger.debug('EnhancedReview: Received options', {
+      budget: options.budget,
+      all: options.all,
+      file: options.file,
+      since: options.since,
+      model: options.model,
+      temperature: options.temperature,
+    });
 
     this.info('Starting code review');
 
@@ -207,6 +221,13 @@ export class ReviewCommand extends BaseCommand {
       responseFormat: 'json' as const,
     };
 
+    logger.debug('EnhancedReview: Composition options', {
+      budget: options.budget,
+      tokenBudget: compositionOptions.tokenBudget,
+      includeDiffs: compositionOptions.includeDiffs,
+      includeInsights: compositionOptions.includeInsights,
+    });
+
     this.info('Composing review prompt...');
 
     const compositionResult = await this.promptComposer.composePrompt(retrievalResult, compositionOptions);
@@ -303,7 +324,7 @@ export class ReviewCommand extends BaseCommand {
       model,
       temperature,
       maxTokens,
-      systemPrompt: systemPrompt || 'You are an expert code reviewer. Provide thorough, actionable feedback.',
+      systemPrompt: systemPrompt || 'You are an expert code reviewer. Analyze the provided code and return your findings in the EXACT JSON format specified in the instructions. Pay special attention to the required fields: summary, severity, category, and issues array with title and description for each issue.',
       prompt: promptText,
       format: format as 'text' | 'json' | 'table',
     };
@@ -312,7 +333,7 @@ export class ReviewCommand extends BaseCommand {
       text: promptText,
       tokenCount: tokenCount,
       sections: {
-        preamble: systemPrompt || 'You are an expert code reviewer. Provide thorough, actionable feedback.',
+        preamble: systemPrompt || 'You are an expert code reviewer. Analyze the provided code and return your findings in the EXACT JSON format specified in the instructions. Pay special attention to the required fields: summary, severity, category, and issues array with title and description for each issue.',
         context: promptText,
         diffs: '',
         insights: '',

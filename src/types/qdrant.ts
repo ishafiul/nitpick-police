@@ -243,7 +243,10 @@ export const ReviewInsightsCollectionConfig: QdrantCollectionConfig = {
 
 export const PromptsCollectionConfig: QdrantCollectionConfig = {
   name: 'prompts',
-  
+  vectorConfig: {
+    size: 768,
+    distance: 'cosine',
+  },
   optimizersConfig: {
     defaultSegmentNumber: 1,
     indexingThreshold: 1000,
@@ -252,7 +255,10 @@ export const PromptsCollectionConfig: QdrantCollectionConfig = {
 
 export const CloudResponsesCollectionConfig: QdrantCollectionConfig = {
   name: 'cloud_responses',
-  
+  vectorConfig: {
+    size: 768,
+    distance: 'cosine',
+  },
   optimizersConfig: {
     defaultSegmentNumber: 1,
     indexingThreshold: 1000,

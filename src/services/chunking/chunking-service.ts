@@ -8,7 +8,10 @@ import {
 import { DartChunker } from './dart-chunker';
 import { DartAstChunker } from './dart-ast-chunker';
 import { TypeScriptChunker } from './typescript-chunker';
+import { GenericChunker } from './generic-chunker';
 import { ConfigManager } from '../../config';
+import { EmbeddingService } from '../embedding.service';
+import { QdrantManager } from '../qdrant';
 import logger from '../../utils/logger';
 
 export interface ChunkingServiceConfig {
@@ -34,6 +37,8 @@ export class ChunkingService {
   private strategies: Map<string, ChunkingStrategy> = new Map();
   private config: ChunkingServiceConfig;
   private configManager: ConfigManager;
+  private embeddingService?: EmbeddingService;
+  private qdrantManager?: QdrantManager;
   private isInitialized: boolean = false;
 
   constructor(config: Partial<ChunkingServiceConfig> = {}) {
@@ -45,6 +50,11 @@ export class ChunkingService {
       ...config,
     };
     this.configManager = new ConfigManager();
+  }
+
+  setServices(embeddingService: EmbeddingService, qdrantManager: QdrantManager): void {
+    this.embeddingService = embeddingService;
+    this.qdrantManager = qdrantManager;
   }
 
   async initialize(): Promise<void> {
@@ -94,6 +104,9 @@ export class ChunkingService {
       this.strategies.set('javascript-ast', new TypeScriptChunker());
     }
 
+    // Register generic chunker for unknown languages
+    this.strategies.set('generic-line-based', new GenericChunker());
+
     logger.debug('ChunkingService: Strategies registered', {
       strategies: Array.from(this.strategies.keys()),
     });
@@ -136,7 +149,7 @@ export class ChunkingService {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      if (this.config.enableFallback && language !== 'unknown') {
+      if (this.config.enableFallback) {
         logger.debug('ChunkingService: Attempting fallback chunking', { filePath });
         try {
           
@@ -170,11 +183,15 @@ export class ChunkingService {
     const startTime = Date.now();
     const { files, globalOptions = {} } = request;
     const allChunks: CodeChunk[] = [];
-    const errors: Array<{ message: string; line?: number }> = [];
+    const errors: Array<{ message: string; line?: number; file?: string; error?: string }> = [];
+    let embeddingsGenerated = 0;
+    let storedInQdrant = 0;
 
     logger.info('ChunkingService: Starting batch chunking', {
       fileCount: files.length,
       batchSize: this.config.batchSize,
+      generateEmbeddings: globalOptions.generateEmbeddings,
+      storeInQdrant: globalOptions.storeInQdrant,
     });
 
     for (let i = 0; i < files.length; i += this.config.batchSize) {
@@ -208,9 +225,120 @@ export class ChunkingService {
 
       for (const result of batchResults) {
         if (result.error) {
-          errors.push({ message: result.error });
+          errors.push({ message: result.error, file: result.file });
         } else {
           allChunks.push(...result.chunks);
+        }
+      }
+    }
+
+    // Generate embeddings if requested
+    if (globalOptions.generateEmbeddings && allChunks.length > 0) {
+      if (!this.embeddingService) {
+        const errorMessage = 'EmbeddingService not available for embedding generation';
+        logger.error('ChunkingService: Embedding generation failed', {
+          error: errorMessage,
+        });
+        errors.push({ message: errorMessage, file: 'embedding_generation' });
+      } else {
+        try {
+          logger.info('ChunkingService: Generating embeddings for chunks', {
+            chunkCount: allChunks.length,
+          });
+
+          // Convert CodeChunk[] to ChunkForEmbedding[]
+          const chunksForEmbedding = allChunks.map(chunk => ({
+            id: chunk.id,
+            payload: {
+              content: chunk.content,
+              language: chunk.language,
+              startLine: chunk.startLine,
+              endLine: chunk.endLine,
+              chunkType: chunk.chunkType,
+              filePath: chunk.filePath,
+              complexityScore: chunk.complexityScore,
+              dependencies: chunk.dependencies,
+              metadata: chunk.metadata,
+            }
+          }));
+
+          const embeddingResult = await this.embeddingService.generateEmbeddingsForChunks(chunksForEmbedding);
+          embeddingsGenerated = embeddingResult.results.length;
+          
+          // Attach embeddings to the original chunks
+          const embeddingMap = new Map(embeddingResult.results.map(result => [result.id, result.vector]));
+          allChunks.forEach(chunk => {
+            const embedding = embeddingMap.get(chunk.id);
+            if (embedding) {
+              chunk.embedding = embedding;
+            }
+          });
+          
+          logger.info('ChunkingService: Embeddings generated', {
+            successful: embeddingResult.results.length,
+            failed: embeddingResult.errors.length,
+            totalProcessed: embeddingResult.totalProcessed,
+          });
+
+          if (embeddingResult.errors.length > 0) {
+            embeddingResult.errors.forEach(error => {
+              errors.push({ message: error.error, file: 'embedding_generation' });
+            });
+          }
+        } catch (error) {
+          const errorMessage = `Failed to generate embeddings: ${error instanceof Error ? error.message : String(error)}`;
+          logger.error('ChunkingService: Embedding generation failed', {
+            error: errorMessage,
+          });
+          errors.push({ message: errorMessage, file: 'embedding_generation' });
+        }
+      }
+    }
+
+    // Store in Qdrant if requested
+    if (globalOptions.storeInQdrant && allChunks.length > 0) {
+      if (!this.qdrantManager) {
+        const errorMessage = 'QdrantManager not available for storage';
+        logger.error('ChunkingService: Qdrant storage failed', {
+          error: errorMessage,
+        });
+        errors.push({ message: errorMessage, file: 'qdrant_storage' });
+      } else {
+        try {
+          logger.info('ChunkingService: Storing chunks in Qdrant', {
+            chunkCount: allChunks.length,
+          });
+
+          // Convert chunks to Qdrant points
+          const points = allChunks.map(chunk => ({
+            id: chunk.id,
+            vector: chunk.embedding || [],
+            payload: {
+              content: chunk.content,
+              language: chunk.language,
+              startLine: chunk.startLine,
+              endLine: chunk.endLine,
+              chunkType: chunk.chunkType,
+              filePath: chunk.filePath,
+              complexityScore: chunk.complexityScore,
+              dependencies: chunk.dependencies,
+              metadata: chunk.metadata,
+            }
+          }));
+
+          await this.qdrantManager.upsertPoints('code_chunks', points);
+          storedInQdrant = points.length;
+          
+          logger.info('ChunkingService: Chunks stored in Qdrant', {
+            successful: storedInQdrant,
+            totalProcessed: points.length,
+          });
+        } catch (error) {
+          const errorMessage = `Failed to store chunks in Qdrant: ${error instanceof Error ? error.message : String(error)}`;
+          logger.error('ChunkingService: Qdrant storage failed', {
+            error: errorMessage,
+          });
+          errors.push({ message: errorMessage, file: 'qdrant_storage' });
         }
       }
     }
@@ -226,6 +354,8 @@ export class ChunkingService {
       strategy: 'batch',
       language: 'mixed',
       errors,
+      embeddingsGenerated,
+      storedInQdrant,
     };
 
     logger.info('ChunkingService: Batch chunking completed', {
@@ -234,6 +364,8 @@ export class ChunkingService {
       totalLines,
       processingTime,
       errors: errors.length,
+      embeddingsGenerated,
+      storedInQdrant,
       avgChunksPerFile: files.length > 0 ? allChunks.length / files.length : 0,
       avgLinesPerChunk: allChunks.length > 0 ? totalLines / allChunks.length : 0,
     });
@@ -276,9 +408,15 @@ export class ChunkingService {
       'javascript': 'javascript-ast', 
       'jsx': 'typescript-ast',
       'tsx': 'typescript-ast',
+      'unknown': 'generic-line-based',
+      'json': 'generic-line-based',
+      'yaml': 'generic-line-based',
+      'yml': 'generic-line-based',
+      'md': 'generic-line-based',
+      'txt': 'generic-line-based',
     };
 
-    const strategyName = fallbackStrategyMap[language] || 'typescript-ast';
+    const strategyName = fallbackStrategyMap[language] || 'generic-line-based';
     const strategy = this.strategies.get(strategyName);
 
     if (!strategy) {
@@ -378,5 +516,18 @@ export class ChunkingService {
       availableStrategies: Array.from(this.strategies.keys()),
       config: this.config,
     };
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.embeddingService) {
+      await this.embeddingService.shutdown();
+    }
+
+    if (this.qdrantManager) {
+      await this.qdrantManager.disconnect();
+    }
+
+    this.isInitialized = false;
+    logger.info('ChunkingService: Shutdown completed');
   }
 }

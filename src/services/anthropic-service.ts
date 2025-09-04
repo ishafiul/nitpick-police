@@ -1,5 +1,6 @@
 import { ConfigManager } from '../config';
 import { logError } from '../utils';
+import logger from '../utils/logger';
 
 export type AnthropicOptions = {
   model: string;
@@ -60,6 +61,21 @@ export class AnthropicService {
 
     try {
       const apiKey = await this.getApiKey();
+      const requestBody = {
+        model: options.model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: options.maxTokens,
+        temperature: options.temperature || 0.3,
+      };
+      
+      logger.debug('AnthropicService: Making API request', {
+        model: options.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature || 0.3,
+        promptLength: prompt.length,
+        promptPreview: prompt.substring(0, 200) + '...',
+      });
+
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
@@ -67,12 +83,7 @@ export class AnthropicService {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify({
-          model: options.model,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: options.maxTokens,
-          temperature: options.temperature || 0.3,
-        }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal as any,
       } as any);
 

@@ -67,6 +67,7 @@ export class TypeScriptChunker implements ChunkingStrategy {
           detectedLanguage,
           supportedLanguages: this.getSupportedLanguages(),
         });
+        throw new Error(`Unsupported language: ${detectedLanguage}. Supported languages: ${this.getSupportedLanguages().join(', ')}`);
       }
 
       let chunks: CodeChunk[];

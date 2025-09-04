@@ -197,9 +197,9 @@ export class EmbeddingService {
     const embeddingPromises = chunks.map(async (chunk) => {
       try {
         const sha256 = this.generateSha256(
-          chunk.payload['file'] +
-          chunk.payload['startLine'] +
-          chunk.payload['endLine']
+          (chunk.payload['file'] || '') +
+          (chunk.payload['startLine'] || 0) +
+          (chunk.payload['endLine'] || 0)
         );
 
         const request = {
@@ -252,8 +252,8 @@ export class EmbeddingService {
     for (const chunk of chunks) {
       const sha256 = this.generateSha256(
         (chunk.payload['file'] || '') +
-        (chunk.payload['startLine'] || '') +
-        (chunk.payload['endLine'] || '')
+        (Number.isNaN(chunk.payload['startLine']) ? 0 : (chunk.payload['startLine'] || 0)) +
+        (Number.isNaN(chunk.payload['endLine']) ? 0 : (chunk.payload['endLine'] || 0))
       );
 
       if (!(await this.cache.has(sha256))) {
@@ -270,8 +270,8 @@ export class EmbeddingService {
     for (const chunk of chunks) {
       const sha256 = this.generateSha256(
         (chunk.payload['file'] || '') +
-        (chunk.payload['startLine'] || '') +
-        (chunk.payload['endLine'] || '')
+        (Number.isNaN(chunk.payload['startLine']) ? 0 : (chunk.payload['startLine'] || 0)) +
+        (Number.isNaN(chunk.payload['endLine']) ? 0 : (chunk.payload['endLine'] || 0))
       );
       const cached = await this.cache.get(sha256);
 
@@ -299,7 +299,10 @@ export class EmbeddingService {
 
     let text = `File: ${payload['file'] || 'unknown'}\n`;
     text += `Language: ${payload['language'] || 'unknown'}\n`;
-    text += `Lines: ${payload['startLine'] || 0}-${payload['endLine'] || 0}\n`;
+    
+    const startLine = Number.isNaN(payload['startLine']) ? 0 : (payload['startLine'] || 0);
+    const endLine = Number.isNaN(payload['endLine']) ? 0 : (payload['endLine'] || 0);
+    text += `Lines: ${startLine}-${endLine}\n`;
 
     if (payload['dependencies'] && payload['dependencies'].length > 0) {
       text += `Dependencies: ${payload['dependencies'].join(', ')}\n`;

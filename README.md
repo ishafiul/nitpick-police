@@ -97,6 +97,24 @@ np init --anthropic-key "sk-ant-..." --qdrant-url http://localhost:6333
 
 ---
 
+### clean
+Clean all Qdrant data and local files for this repository. Useful for starting fresh or removing all stored data.
+
+Options:
+- `--force`: Skip confirmation prompt
+- `--keep-config`: Keep configuration files (only clean data)
+- `--dry-run`: Show what would be cleaned without actually cleaning
+
+Examples:
+```bash
+np clean                    # Interactive clean with confirmation
+np clean --force           # Clean without confirmation
+np clean --keep-config     # Clean data but keep configuration
+np clean --dry-run         # Preview what would be cleaned
+```
+
+---
+
 ### config
 Show or manage configuration values. Supports viewing sections or entire config.
 
@@ -239,6 +257,19 @@ Common options:
 4) Compose prompt with `np compose` (preview/dry-run to size)
 5) Call `np review` (dry‑run first, then real run)
 6) View results with `np list`/`np show`; resolve comments with `np mark-resolved`
+
+### Starting Fresh
+
+To clean all data and start over:
+```bash
+np clean --force    # Remove all data and config
+np init            # Reinitialize
+```
+
+Or to keep config but clean data:
+```bash
+np clean --keep-config --force
+```
 
 ## Troubleshooting
 

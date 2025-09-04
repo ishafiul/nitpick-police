@@ -97,6 +97,10 @@ export class FileWalkerService {
       maxFiles,
     });
 
+    logger.debug('FileWalkerService: Include patterns', {
+      patterns: finalIncludePatterns,
+    });
+
     const files: FileInfo[] = [];
     const directories: string[] = [];
     const errors: Array<{ path: string; error: string }> = [];
@@ -111,10 +115,26 @@ export class FileWalkerService {
 
         if (stats.isDirectory()) {
           const relativePath = path.relative(rootPath, currentPath);
-          if (this.shouldExclude(relativePath, finalExcludePatterns, true)) return;
+          logger.debug('FileWalkerService: Checking directory', {
+            directory: relativePath,
+            excludePatterns: finalExcludePatterns,
+          });
+          if (this.shouldExclude(relativePath, finalExcludePatterns, true)) {
+            logger.debug('FileWalkerService: Directory excluded', {
+              directory: relativePath,
+            });
+            return;
+          }
 
           directories.push(currentPath);
-          if (!includeHidden && path.basename(currentPath).startsWith('.')) return;
+          const basename = path.basename(currentPath);
+          if (!includeHidden && basename.startsWith('.') && basename !== '.') {
+            logger.debug('FileWalkerService: Hidden directory skipped', {
+              directory: relativePath,
+              basename: basename,
+            });
+            return;
+          }
 
           const entries = fs.readdirSync(currentPath);
           for (const entry of entries) {
@@ -125,12 +145,22 @@ export class FileWalkerService {
         } else if (stats.isFile()) {
           if (!followSymlinks && this.isSymlink(currentPath)) return;
           const relativePath = path.relative(rootPath, currentPath);
+          logger.debug('FileWalkerService: Checking file', {
+            file: relativePath,
+            patterns: finalIncludePatterns,
+          });
           if (!this.shouldInclude(relativePath, finalIncludePatterns, finalExcludePatterns)) {
             filteredByPatterns++;
+            logger.debug('FileWalkerService: File filtered out', {
+              file: relativePath,
+            });
             return;
           }
           const fileInfo = this.createFileInfo(currentPath, relativePath, stats);
           files.push(fileInfo);
+          logger.debug('FileWalkerService: File included', {
+            file: relativePath,
+          });
         } else if (stats.isSymbolicLink()) {
           if (followSymlinks) {
             try {
@@ -230,7 +260,17 @@ export class FileWalkerService {
     return this.matchesAnyPattern(relativePath, includePatterns);
   }
 
-  private shouldExclude(relativePath: string, excludePatterns: string[], _isDirectory: boolean): boolean {
+  private shouldExclude(relativePath: string, excludePatterns: string[], isDirectory: boolean): boolean {
+    // For directories, we need to check if any part of the path matches exclude patterns
+    if (isDirectory) {
+      const pathParts = relativePath.split('/');
+      for (let i = 0; i < pathParts.length; i++) {
+        const partialPath = pathParts.slice(0, i + 1).join('/');
+        if (this.matchesAnyPattern(partialPath, excludePatterns)) {
+          return true;
+        }
+      }
+    }
     return this.matchesAnyPattern(relativePath, excludePatterns);
   }
 
@@ -243,14 +283,46 @@ export class FileWalkerService {
   }
 
   private matchesPattern(filePath: string, pattern: string): boolean {
-    const regexPattern = pattern
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^/]*')
-      .replace(/\?/g, '[^/]')
-      .replace(/\./g, '\\.')
-      .replace(/\{([^}]+)\}/g, '($1)');
-    const regex = new RegExp(`^${regexPattern}$`);
-    return regex.test(filePath);
+    // Handle brace expansion first
+    const expandedPatterns = this.expandBraces(pattern);
+    
+    for (const expandedPattern of expandedPatterns) {
+      // Convert glob pattern to regex
+      let regexPattern = expandedPattern
+        .replace(/\./g, '\\.')                 // escape dots first
+        .replace(/\?/g, '[^/]')                // ? matches single non-slash char
+        .replace(/\*\*\/\*/g, '(?:[^/]+/)*[^/]*')  // Handle **/* as a unit
+        .replace(/\*\*/g, '(?:[^/]+/)*[^/]*') // ** matches zero or more directories and files
+        .replace(/(?<!\*)\*(?!\*)/g, '[^/]*'); // * matches zero or more non-slash chars (but not **)
+      
+      // Special case: if pattern ends with **, it should match the directory itself
+      if (expandedPattern.endsWith('**')) {
+        const basePattern = expandedPattern.slice(0, -2);
+        // Remove trailing slash if present
+        const cleanBasePattern = basePattern.endsWith('/') ? basePattern.slice(0, -1) : basePattern;
+        if (filePath === cleanBasePattern) return true;
+      }
+      
+      const regex = new RegExp(`^${regexPattern}$`);
+      if (regex.test(filePath)) return true;
+    }
+    return false;
+  }
+
+  private expandBraces(pattern: string): string[] {
+    const braceMatch = pattern.match(/\{([^}]+)\}/);
+    if (!braceMatch || !braceMatch[1]) return [pattern];
+    
+    const before = pattern.substring(0, braceMatch.index!);
+    const after = pattern.substring(braceMatch.index! + braceMatch[0].length);
+    const options = braceMatch[1].split(',');
+    
+    const results: string[] = [];
+    for (const option of options) {
+      const expanded = before + option.trim() + after;
+      results.push(...this.expandBraces(expanded));
+    }
+    return results;
   }
 
   private isSymlink(filePath: string): boolean {

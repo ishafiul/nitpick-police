@@ -102,11 +102,19 @@ export class QdrantService {
           throw new Error(`No configuration found for collection: ${name}`);
         }
 
-        await this.qdrantManager.createCollection({
+        // Create collection with basic configuration first
+        const collectionSchema = {
           name: config.name,
-          vectors: config.vectorConfig || { size: 768, distance: 'cosine' },
-          optimizers_config: (config.optimizersConfig as any) || undefined,
+          vectors: config.vectorConfig || { size: 768, distance: 'cosine' as const },
+          // Skip optimizers_config for now to avoid compatibility issues
+        };
+
+        logger.debug('QdrantService: Creating collection', {
+          collection: name,
+          schema: collectionSchema,
         });
+
+        await this.qdrantManager.createCollection(collectionSchema);
 
         logger.info('QdrantService: Created collection', { collection: name });
       }

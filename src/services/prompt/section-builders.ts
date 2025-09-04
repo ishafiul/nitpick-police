@@ -327,24 +327,34 @@ export function buildInstructions(options: PromptOptions, maxTokens: number): st
 
   switch (options.responseFormat) {
     case 'json':
-      parts.push('Please provide your response in the following JSON format:');
+      parts.push('Please provide your response in the following EXACT JSON format:');
       parts.push('```json');
       parts.push('{');
-      parts.push('  "summary": "Brief summary of findings",');
+      parts.push('  "summary": "Brief summary of your code review findings",');
+      parts.push('  "severity": "low|medium|high|critical",');
+      parts.push('  "category": "security|performance|style|bug|complexity|maintainability",');
       parts.push('  "issues": [');
       parts.push('    {');
-      parts.push('      "file": "path/to/file",');
-      parts.push('      "line": 123,');
-      parts.push('      "category": "security|performance|style|bug|complexity|documentation|maintainability",');
+      parts.push('      "title": "Short descriptive title of the issue",');
+      parts.push('      "description": "Detailed description of the issue",');
       parts.push('      "severity": "low|medium|high|critical",');
-      parts.push('      "comment": "Description of the issue",');
-      parts.push('      "suggestion": "How to fix it (optional)"');
+      parts.push('      "category": "security|performance|style|bug|complexity|maintainability",');
+      parts.push('      "file": "path/to/file (optional)",');
+      parts.push('      "line": 123,');
+      parts.push('      "code": "code snippet (optional)",');
+      parts.push('      "suggestion": "How to fix it (optional)",');
+      parts.push('      "confidence": 0.8');
       parts.push('    }');
       parts.push('  ],');
-      parts.push('  "recommendations": ["General suggestions"],');
-      parts.push('  "overall_assessment": "good|needs_improvement|requires_attention"');
+      parts.push('  "recommendations": ["General suggestions (optional)"],');
+      parts.push('  "overall_score": 7.5');
       parts.push('}');
       parts.push('```');
+      parts.push('');
+      parts.push('IMPORTANT: You MUST include the top-level "severity" and "category" fields.');
+      parts.push('Each issue MUST have "title" and "description" fields.');
+      parts.push('Use only the exact category values: security, performance, style, bug, complexity, maintainability');
+      parts.push('Use only the exact severity values: low, medium, high, critical');
 
       if (options.jsonSchema) {
         parts.push('\nUse this JSON schema for validation:');

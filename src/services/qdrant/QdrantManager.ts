@@ -131,13 +131,22 @@ export class QdrantManager {
     }
 
     try {
-      await this.client.createCollection(schema.name, {
+      const collectionConfig = {
         vectors: {
           size: schema.vectors.size,
-          distance: schema.vectors.distance as any, 
+          distance: (schema.vectors.distance === 'cosine' ? 'Cosine' : 
+                    schema.vectors.distance === 'euclidean' ? 'Euclid' : 
+                    schema.vectors.distance === 'dot' ? 'Dot' : 'Cosine') as 'Cosine' | 'Euclid' | 'Dot' | 'Manhattan',
         },
         ...(schema.optimizers_config && { optimizers_config: schema.optimizers_config as any }),
+      };
+
+      logger.debug('QdrantManager: Creating collection with config', {
+        collection: schema.name,
+        config: collectionConfig,
       });
+
+      await this.client.createCollection(schema.name, collectionConfig);
 
       logger.info('QdrantManager: Collection created successfully', {
         collection: schema.name,
@@ -149,6 +158,7 @@ export class QdrantManager {
       logger.error('QdrantManager: Failed to create collection', {
         collection: schema.name,
         error: error instanceof Error ? error.message : String(error),
+        fullError: error,
       });
       throw error;
     }
@@ -199,15 +209,35 @@ export class QdrantManager {
     const maxRetries = this.config?.retries || 3;
     let lastError: Error | null = null;
 
+    // Log detailed information about the points being upserted
+    logger.debug('QdrantManager: Upserting points', {
+      collection: collectionName,
+      pointsCount: points.length,
+      samplePoint: points.length > 0 ? {
+        id: points[0]?.id,
+        vectorLength: points[0]?.vector?.length,
+        vectorSample: points[0]?.vector?.slice(0, 5),
+        payloadKeys: Object.keys(points[0]?.payload || {}),
+      } : null,
+    });
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await this.client.upsert(collectionName, {
+        const upsertPayload = {
           points: points.map(point => ({
             id: point.id,
             vector: point.vector,
             payload: point.payload || {},
           })),
+        };
+
+        logger.debug('QdrantManager: Upsert payload', {
+          collection: collectionName,
+          attempt,
+          payload: JSON.stringify(upsertPayload, null, 2),
         });
+
+        await this.client.upsert(collectionName, upsertPayload);
 
         logger.info('QdrantManager: Points upserted successfully', {
           collection: collectionName,
@@ -219,6 +249,14 @@ export class QdrantManager {
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        logger.error('QdrantManager: Upsert attempt failed', {
+          collection: collectionName,
+          attempt,
+          maxRetries,
+          error: lastError.message,
+          errorDetails: error,
+        });
 
         if (attempt < maxRetries) {
           const delay = Math.pow(2, attempt - 1) * 1000; 

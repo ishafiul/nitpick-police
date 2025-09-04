@@ -70,9 +70,12 @@ export class RepositoryIndexer {
     try {
       await this.configManager.loadConfig();
       await this.fileWalker.initialize();
-      await this.chunkingService.initialize();
       await this.embeddingService.initialize();
       await this.qdrantManager.connect();
+      
+      // Pass the services to the chunking service
+      this.chunkingService.setServices(this.embeddingService, this.qdrantManager);
+      await this.chunkingService.initialize();
 
       this.isInitialized = true;
       logger.info('RepositoryIndexer: Initialized successfully');

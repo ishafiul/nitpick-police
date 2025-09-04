@@ -18,7 +18,7 @@ export async function testQdrantConnection(url: string, timeoutMs: number = 5000
   try {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(`${url.replace(/\/$/, '')}/health`, { signal: controller.signal as any });
+    const res = await fetch(`${url.replace(/\/$/, '')}/`, { signal: controller.signal as any });
     clearTimeout(id);
     const responseTime = Date.now() - start;
     if (!(res as any).ok) return { success: false, responseTime, error: (res as any).statusText };
